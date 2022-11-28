@@ -17,17 +17,16 @@
 package com.databricks.spark.sql.perf
 
 import java.util.concurrent.LinkedBlockingQueue
-
 import scala.collection.immutable.Stream
 import scala.sys.process._
-
 import org.slf4j.LoggerFactory
-
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext, SaveMode}
+
+import java.util.Collections
 
 
 /**
@@ -237,13 +236,14 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       if (partitionColumns.nonEmpty) {
         writer.partitionBy(partitionColumns : _*)
       }
+
       println(s"Generating table $name in database to $location with save mode $mode.")
       log.info(s"Generating table $name in database to $location with save mode $mode.")
       writer.save(location)
       sqlContext.dropTempTable(tempTableName)
     }
 
-    def createExternalTable(location: String, format: String, databaseName: String,
+    def createExternalTable(stagingLocation: String, location: String, format: String, databaseName: String,
       overwrite: Boolean, discoverPartitions: Boolean = true): Unit = {
 
       val qualifiedTableName = databaseName + "." + name
@@ -254,8 +254,22 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       if (!tableExists || overwrite) {
         println(s"Creating external table $name in database $databaseName using data stored in $location.")
         log.info(s"Creating external table $name in database $databaseName using data stored in $location.")
-        sqlContext.createExternalTable(qualifiedTableName, location, format)
+       val dfTemp = sqlContext.read.parquet(stagingLocation)
+       dfTemp.createOrReplaceTempView(s"${name}_temp")
+        dfTemp.printSchema()
+
+      //  sqlContext.sparkSession.catalog.createTable(qualifiedTableName, "iceberg", dfTemp.schema,
+       //   java.util.Collections.emptyMap[String, String]())
+     //   dfTemp.writeTo(qualifiedTableName).append()
+       // sqlContext.createExternalTable(qualifiedTableName, location, "iceberg", dfTemp.schema)
+       //  sqlContext.createExternalTable(qualifiedTableName, location, format)
+
+        sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+          s" as select * from ${name}_temp")
+       // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+        sqlContext.sql(s"drop view if exists ${name}_temp")
       }
+
       if (partitionColumns.nonEmpty && discoverPartitions) {
         println(s"Discovering partitions for table $name.")
         log.info(s"Discovering partitions for table $name.")
@@ -311,7 +325,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     }
   }
 
-  def createExternalTables(location: String, format: String, databaseName: String,
+  def createExternalTables(stagingLocation: String, location: String, format: String, databaseName: String,
       overwrite: Boolean, discoverPartitions: Boolean, tableFilter: String = ""): Unit = {
 
     val filtered = if (tableFilter.isEmpty) {
@@ -323,7 +337,8 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     sqlContext.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
     filtered.foreach { table =>
       val tableLocation = s"$location/${table.name}"
-      table.createExternalTable(tableLocation, format, databaseName, overwrite, discoverPartitions)
+      val stagingTableLocation = s"$stagingLocation/${table.name}"
+      table.createExternalTable(stagingTableLocation, tableLocation, format, databaseName, overwrite, discoverPartitions)
     }
     sqlContext.sql(s"USE $databaseName")
     println(s"The current database has been set to $databaseName.")
