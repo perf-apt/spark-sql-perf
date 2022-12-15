@@ -6,7 +6,7 @@ sbt clean package
 Once the jar is created.
 
 Go to spark checkout.
-spark should be build with hive-thrift-server and hive module enabled.
+spark should be build with hive-thriftserver and hive module enabled. ( -Phive -Phive-thriftserver)
 
 build the icebrg spark-runtime jars.
 
