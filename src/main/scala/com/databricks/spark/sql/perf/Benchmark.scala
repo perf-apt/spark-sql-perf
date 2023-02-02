@@ -23,13 +23,13 @@ import scala.concurrent.duration._
 import scala.language.implicitConversions
 import scala.util.{Success, Try, Failure => SFailure}
 import scala.util.control.NonFatal
-
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Dataset, DataFrame, SQLContext, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, SQLContext, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.SparkContext
-
 import com.databricks.spark.sql.perf.cpu._
+
+import java.io.{PrintWriter, StringWriter}
 
 /**
  * A collection of queries that test a particular aspect of Spark SQL.
@@ -250,11 +250,14 @@ abstract class Benchmark(
           executionTime = Some(timeMs))
       } catch {
         case e: Exception =>
+          val sw: StringWriter = new StringWriter();
+          val pw: PrintWriter  = new PrintWriter(sw);
+          e.printStackTrace(pw);
           BenchmarkResult(
             name = name,
             mode = executionMode.toString,
             parameters = parameters,
-            failure = Some(Failure(e.getClass.getSimpleName, e.getMessage)))
+            failure = Some(Failure(e.getClass.getSimpleName, e.getMessage + "..." + sw.toString)))
       }
     }
   }

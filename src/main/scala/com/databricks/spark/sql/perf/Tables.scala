@@ -251,23 +251,29 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       if (overwrite) {
         sqlContext.sql(s"DROP TABLE IF EXISTS $databaseName.$name")
       }
+      val useIcebergFormat = true
       if (!tableExists || overwrite) {
-        println(s"Creating external table $name in database $databaseName using data stored in $location.")
-        log.info(s"Creating external table $name in database $databaseName using data stored in $location.")
-       val dfTemp = sqlContext.read.parquet(stagingLocation)
-       dfTemp.createOrReplaceTempView(s"${name}_temp")
-        dfTemp.printSchema()
+        if (useIcebergFormat) {
+          println(s"Creating external table $name in database $databaseName using data stored in $location.")
+          log.info(s"Creating external table $name in database $databaseName using data stored in $location.")
+          val dfTemp = sqlContext.read.parquet(stagingLocation)
+          dfTemp.createOrReplaceTempView(s"${name}_temp")
+          dfTemp.printSchema()
 
-      //  sqlContext.sparkSession.catalog.createTable(qualifiedTableName, "iceberg", dfTemp.schema,
-       //   java.util.Collections.emptyMap[String, String]())
-     //   dfTemp.writeTo(qualifiedTableName).append()
-       // sqlContext.createExternalTable(qualifiedTableName, location, "iceberg", dfTemp.schema)
-       //  sqlContext.createExternalTable(qualifiedTableName, location, format)
+          //  sqlContext.sparkSession.catalog.createTable(qualifiedTableName, "iceberg", dfTemp.schema,
+          //   java.util.Collections.emptyMap[String, String]())
+          //   dfTemp.writeTo(qualifiedTableName).append()
+          // sqlContext.createExternalTable(qualifiedTableName, location, "iceberg", dfTemp.schema)
+          //  sqlContext.createExternalTable(qualifiedTableName, location, format)
 
-        sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
-          s" as select * from ${name}_temp")
-       // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
-        sqlContext.sql(s"drop view if exists ${name}_temp")
+          sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+            s" as select * from ${name}_temp")
+          // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+          sqlContext.sql(s"drop view if exists ${name}_temp")
+        } else {
+          sqlContext.sql(s"create  table  spark_catalog.$databaseName.$name using parquet" +
+            s" location '$stagingLocation'")
+        }
       }
 
       if (partitionColumns.nonEmpty && discoverPartitions) {

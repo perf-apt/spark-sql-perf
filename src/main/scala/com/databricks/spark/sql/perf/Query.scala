@@ -19,10 +19,11 @@ package com.databricks.spark.sql.perf
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
-
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.execution.SparkPlan
+
+import java.io.{PrintWriter, StringWriter}
 
 
 /** Holds one benchmark query and its metadata. */
@@ -152,10 +153,13 @@ class Query(
         breakDown = breakdownResults)
     } catch {
       case e: Exception =>
+        val sw: StringWriter = new StringWriter();
+        val pw: PrintWriter = new PrintWriter(sw);
+        e.printStackTrace(pw);
          BenchmarkResult(
            name = name,
            mode = executionMode.toString,
-           failure = Failure(e.getClass.getName, e.getMessage))
+           failure = Failure(e.getClass.getName, e.getMessage + "...." + sw.toString))
     }
   }
 
