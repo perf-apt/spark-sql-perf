@@ -257,19 +257,45 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
           println(s"Creating external table $name in database $databaseName using data stored in $location.")
           log.info(s"Creating external table $name in database $databaseName using data stored in $location.")
           val dfTemp = sqlContext.read.parquet(stagingLocation)
-          dfTemp.createOrReplaceTempView(s"${name}_temp")
-          dfTemp.printSchema()
 
+          val createPrtitionTbl = true
           //  sqlContext.sparkSession.catalog.createTable(qualifiedTableName, "iceberg", dfTemp.schema,
           //   java.util.Collections.emptyMap[String, String]())
           //   dfTemp.writeTo(qualifiedTableName).append()
           // sqlContext.createExternalTable(qualifiedTableName, location, "iceberg", dfTemp.schema)
           //  sqlContext.createExternalTable(qualifiedTableName, location, format)
+          if (createPrtitionTbl && name.equalsIgnoreCase("store_sales")) {
+            dfTemp.sort("ss_sold_date_sk").createOrReplaceTempView(s"${name}_temp")
+            dfTemp.printSchema()
+            sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+              s" PARTITIONED BY  (ss_sold_date_sk) as select * from ${name}_temp")
+            // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+            sqlContext.sql(s"drop view if exists ${name}_temp")
+          } else if (createPrtitionTbl && name.equalsIgnoreCase("catalog_sales")) {
+            dfTemp.sort("cs_sold_date_sk").createOrReplaceTempView(s"${name}_temp")
+            dfTemp.printSchema()
+            sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+              s"PARTITIONED BY  (cs_sold_date_sk) as select * from ${name}_temp")
+            // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+            sqlContext.sql(s"drop view if exists ${name}_temp")
+          } else if (createPrtitionTbl && name.equalsIgnoreCase("web_sales")) {
+            dfTemp.sort("ws_sold_date_sk").createOrReplaceTempView(s"${name}_temp")
+            dfTemp.printSchema()
 
-          sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
-            s" as select * from ${name}_temp")
-          // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
-          sqlContext.sql(s"drop view if exists ${name}_temp")
+            sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+              s"PARTITIONED BY  (ws_sold_date_sk) as select * from ${name}_temp")
+            // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+            sqlContext.sql(s"drop view if exists ${name}_temp")
+          }
+           else {
+
+            dfTemp.createOrReplaceTempView(s"${name}_temp")
+            dfTemp.printSchema()
+            sqlContext.sql(s"create  external table  spark_catalog.$databaseName.$name using iceberg " +
+              s" as select * from ${name}_temp")
+            // dfTemp.writeTo(s"spark_catalog.$databaseName.$name").append()
+            sqlContext.sql(s"drop view if exists ${name}_temp")
+          }
         } else {
           sqlContext.sql(s"create  table  spark_catalog.$databaseName.$name using parquet" +
             s" location '$stagingLocation'")
