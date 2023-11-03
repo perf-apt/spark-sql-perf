@@ -28,7 +28,7 @@ trait Tpcds_2_4_Queries extends Benchmark {
   import ExecutionMode._
 
 
-  val queryNames = if (true)  {Seq(
+  val queryNames = if (true )  {Seq(
     "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10",
     "q11", "q12", "q13", "q14a", "q14b", "q15", "q16", "q17", "q18", "q19",
     "q20", "q21", "q22", "q23a", "q23b", "q24a", "q24b", "q25", "q26", "q27",
@@ -43,7 +43,7 @@ trait Tpcds_2_4_Queries extends Benchmark {
   )
 
 }else {
-  Seq("q67")
+  Seq("q17") //59//58
 }
 
 

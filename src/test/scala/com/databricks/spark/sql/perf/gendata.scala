@@ -1,7 +1,15 @@
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
+import org.apache.spark.sql.SparkSession
 
 // Note: Declare "sqlContext" for Spark 2.x version
-val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+val useHive = false
+// val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+val sqlContext = if (useHive) {
+
+  SparkSession .builder() .appName("SparkSessionExample").enableHiveSupport().getOrCreate().sqlContext
+} else {
+  new org.apache.spark.sql.SQLContext(sc)
+}
 /*
 sqlContext.setConf("spark.sql.extensions",
   "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
@@ -16,7 +24,7 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 val rootDir = "/tmp/tpcds" // root directory of location to create data in.
 val stagingDir = "/tmp/tpcds"
 val databaseName = "default" // name of database to create.
-val scaleFactor = "2" // scaleFactor defines the size of the dataset to generate (in GB).
+val scaleFactor = "4" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
@@ -60,7 +68,10 @@ val tpcds = new TPCDS (sqlContext = sqlContext)
 // Set:
 
 sqlContext.sql(s"use $databaseName")
-sqlContext.sql(s"use catalog spark_catalog")
+
+if (!useHive) {
+  sqlContext.sql(s"use catalog spark_catalog")
+}
 val resultLocation = "/tmp/tpcds_results" // place to write results
 val iterations = 1 // how many iterations of queries to run.
 val queries = tpcds.tpcds2_4Queries // queries to run.

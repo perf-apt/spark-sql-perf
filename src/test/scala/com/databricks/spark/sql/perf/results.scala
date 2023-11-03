@@ -1,6 +1,6 @@
 import org.apache.spark.sql.functions._
 val resultLocation = "/tmp/tpcds_results"
-val result = spark.read.json(resultLocation).filter("timestamp = 1673304100760").select(explode($"results").as("r"))
+val result = spark.read.json(resultLocation).filter("timestamp = 1699050868324").select(explode($"results").as("r"))
 result.createOrReplaceTempView("result")
-spark.sql("select substring(r.name,1,100) as Name, bround((r.parsingTime+r.analysisTime+r.optimizationTime+r.planningTime+r.executionTime)/1000.0,1) as Runtime_sec  from result").show(100)
+spark.sql("select  r.name, bround((r.parsingTime+r.analysisTime+r.optimizationTime+r.planningTime+r.executionTime)/1000.0,1) as Runtime_sec  from result").show(100)
 

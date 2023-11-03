@@ -5,7 +5,7 @@ name := "spark-sql-perf"
 
 organization := "com.databricks"
 
-scalaVersion := "2.12.10"
+scalaVersion := "2.13.10"
 
 crossScalaVersions := Seq("2.12.10")
 
@@ -14,10 +14,10 @@ sparkPackageName := "databricks/spark-sql-perf"
 // All Spark Packages need a license
 licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 
-sparkVersion := "3.2.2"
+sparkVersion := "4.0.0-SNAPSHOT"
 
 sparkComponents ++= Seq("sql", "hive", "mllib")
-
+resolvers += Resolver.mavenLocal
 initialCommands in console :=
   """
     |import org.apache.spark.sql._
@@ -33,9 +33,9 @@ initialCommands in console :=
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
-libraryDependencies += "com.twitter" %% "util-jvm" % "6.45.0" % "provided"
+libraryDependencies += "com.twitter" %% "util-jvm" % "22.7.0" % "provided"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % "test"
 
 libraryDependencies += "org.yaml" % "snakeyaml" % "1.23"
 

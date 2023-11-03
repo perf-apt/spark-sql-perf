@@ -212,7 +212,7 @@ abstract class Benchmark(
       new SparkPerfExecution(
         name,
         Map.empty,
-        () => Unit,
+        () => (),
         () => rdd.count(),
         rdd.toDebugString)
     }
@@ -431,7 +431,8 @@ object Benchmark {
       }
 
       try {
-        val resultsTable = sqlContext.createDataFrame(results)
+        import scala.jdk.CollectionConverters._
+        val resultsTable = sqlContext.createDataFrame(results.asJava, classOf[ExperimentRun])
         logMessage(s"Results written to table: 'sqlPerformance' at $resultPath")
         resultsTable
           .coalesce(1)
@@ -478,14 +479,16 @@ object Benchmark {
 
     /** Returns results from an actively running experiment. */
     def getCurrentResults() = {
-      val tbl = sqlContext.createDataFrame(currentResults)
+      import scala.jdk.CollectionConverters._
+      val tbl = sqlContext.createDataFrame(currentResults.asJava, classOf[BenchmarkResult])
       tbl.createOrReplaceTempView("currentResults")
       tbl
     }
 
     /** Returns full iterations from an actively running experiment. */
     def getCurrentRuns() = {
-      val tbl = sqlContext.createDataFrame(currentRuns)
+      import scala.jdk.CollectionConverters._
+      val tbl = sqlContext.createDataFrame(currentRuns.asJava, classOf[BenchmarkResult])
       tbl.createOrReplaceTempView("currentRuns")
       tbl
     }
