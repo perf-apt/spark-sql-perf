@@ -432,8 +432,10 @@ object Benchmark {
 
       try {
         import scala.jdk.CollectionConverters._
-        val resultsTable = sqlContext.createDataFrame(results.asJava, classOf[ExperimentRun])
-        logMessage(s"Results written to table: 'sqlPerformance' at $resultPath")
+        import sqlContext.implicits._
+        val resultsTable = sqlContext.createDataset(results.asJava)
+        logMessage(s"Results written to table: 'sqlPerformance' at $resultPath with schema" +
+          s" ${resultsTable.schema.toString()}")
         resultsTable
           .coalesce(1)
           .write
@@ -480,7 +482,8 @@ object Benchmark {
     /** Returns results from an actively running experiment. */
     def getCurrentResults() = {
       import scala.jdk.CollectionConverters._
-      val tbl = sqlContext.createDataFrame(currentResults.asJava, classOf[BenchmarkResult])
+      import sqlContext.implicits._
+      val tbl = sqlContext.createDataset(currentResults.asJava)
       tbl.createOrReplaceTempView("currentResults")
       tbl
     }
@@ -488,7 +491,8 @@ object Benchmark {
     /** Returns full iterations from an actively running experiment. */
     def getCurrentRuns() = {
       import scala.jdk.CollectionConverters._
-      val tbl = sqlContext.createDataFrame(currentRuns.asJava, classOf[BenchmarkResult])
+      import sqlContext.implicits._
+      val tbl = sqlContext.createDataset(currentRuns.asJava)
       tbl.createOrReplaceTempView("currentRuns")
       tbl
     }

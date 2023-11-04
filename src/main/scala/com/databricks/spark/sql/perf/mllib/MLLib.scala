@@ -36,7 +36,7 @@ object MLLib {
       executionsToRun = benchmarks)
     e.waitForFinish(1000 * 60 * 30)
     logger.info("Run finished")
-    e.getCurrentResults()
+    e.getCurrentResults().toDF()
   }
 
   private def getConfig(resourcePath: String): String = {
@@ -97,6 +97,6 @@ object MLLib {
       forkThread = false)
     e.waitForFinish(conf.timeout.toSeconds.toInt)
     logger.info("Run finished")
-    e.getCurrentResults()
+    e.getCurrentResults().toDF()
   }
 }
