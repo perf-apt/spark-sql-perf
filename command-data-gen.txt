@@ -1,0 +1,62 @@
+./bin/spark-shell  --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar —-conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog --conf spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions —-conf spark.sql.catalog.spark_catalog.type=hive --conf spark.sql.catalog.tpcds=org.apache.iceberg.spark.SparkSessionCatalog —-conf spark.sql.catalog.tpcds.type=hive --conf spark.sql.catalog.tpcds.warehouse=/tmp/iceberg_warehouse/tpcds --executor-memory 2G   --num-executors 2  --executor-cores 2 -i /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/src/test/scala/com/databricks/spark/sql/perf/gendata.scala
+
+
+
+
+
+./bin/spark-shell --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/hive-metastore/build/libs/iceberg-hive-metastore-0.14.1.7.2.15.0-SNAPSHOT.jar --conf "spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog" --conf "spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse" --conf "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" —-conf "spark.sql.catalog.spark_catalog.type=hive" --conf "spark.sql.catalog.tpcds=org.apache.iceberg.spark.SparkSessionCatalog" —-conf "spark.sql.catalog.tpcds.type=hive" --conf "spark.sql.catalog.tpcds.warehouse=/tmp/iceberg_warehouse/tpcds"   --executor-memory 2G  --num-executors 2  --executor-cores 2 -i /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/src/test/scala/com/databricks/spark/sql/perf/runtpcds.scala
+
+
+
+./bin/spark-shell  --jars  /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.17.0-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/hive-metastore/build/libs/iceberg-hive-metastore-0.14.1.7.2.15.0-SNAPSHOT.jar  —-conf   spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog  --conf   spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse   --conf    spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions  —-conf   spark.sql.catalog.spark_catalog.type=hive   --conf spark.sql.catalog.tpcdscatalog=org.apache.iceberg.spark.SparkSessionCatalog   —-conf spark.sql.catalog.tpcdscatalog.type=hive --conf   spark.sql.catalog.tpcdscatalog.warehouse=/tmp/iceberg_warehouse/tpcds  --executor-memory 2G   --num-executors 2  --executor-cores 2 -i /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/src/test/scala/com/databricks/spark/sql/perf/gendata.scala
+
+
+
+./bin/spark-shell  --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar  --conf  spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog  --conf  spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions —-conf spark.sql.catalog.spark_catalog.type=hive  --executor-memory 2G   --num-executors 2  --executor-cores 2
+
+
+
+
+
+
+
+./bin/spark-shell  --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar   —-conf   spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog --conf spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions    —-conf   spark.sql.catalog.spark_catalog.type=hive   --executor-memory 2G   --num-executors 2  --executor-cores 2
+
+
+
+
+
+ ./bin/spark-shell  --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar   —-conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog  --conf spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions    —-conf spark.sql.catalog.spark_catalog.type=hive  —-conf spark.sql.catalog.tpcds=org.apache.iceberg.spark.SparkSessionCatalog  --conf spark.sql.catalog.tpcds.warehouse=/tmp/iceberg_warehouse  —-conf spark.sql.catalog.tpcds.type=hive  --executor-memory 2G   --num-executors 2  --executor-cores 2
+
+
+./bin/spark-shell --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/iceberg/spark/v3.2/spark-runtime/build/libs/iceberg-spark-runtime-3.2_2.12-0.14.1.7.2.15.0-SNAPSHOT.jar --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog --conf spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions "-conf spark.sql.catalog.spark_catalog.type=hive --executor-memory 2G --num-executors 2 --executor-cores 2
+
+APPROVAL REQUEST  (for 7.2.16.0)
+What are you fixing?
+CDPD-45218 Iceberg v2: Use merge-on-read as explicit mode for V2 tables of iceberg, if mode is not specified by the user.
+Risk assessment - what happens if you don’t fix it?
+The default behaviour of copy-on-write will kick in, which is detrimental for performance.
+What workarounds exist for the issue?
+User needs to explicitly provide mode property as merge-on-read
+What testing is planned to be done to ensure stability?
+Ample test coverage added.  Jenkins build started https://master-03.jenkins.cloudera.com/job/iceberg-build-parameterized/295/ ( will ping once green)
+Do we need to fix this on the “cdpd-master” branch? (valid after branching)
+Already merged.
+
+
+
+org.apache.spark.sql.catalyst.expressions. is in wrong order relative to org.apache.spark.sql.catalyst.expressions.aggregate..
+
+<html>Are you sure you want to println? If yes, wrap the code block with<br/>// scalastyle:off println<br/>println(...)<br/>// scalastyle:on println
+
+
+
+select ten, udf(sum(distinct four)) from onek a
+group by ten
+having exists (select 1 from onek b where udf(sum(distinct a.four)) = b.four)
+
+
+
+-conf "spark.driver.extraJavaOptions=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*"
+
+./bin/spark-shell  --jars /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/Users/ashahid/workspace/upstream-iceberg/spark/v3.5/spark-runtime/build/libs/iceberg-spark-runtime-3.5_2.12-1.4.0-SNAPSHOT.jar  —-conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog --conf spark.sql.catalog.spark_catalog.warehouse=/tmp/iceberg_warehouse --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions —-conf spark.sql.catalog.spark_catalog.type=hive --conf spark.sql.catalog.tpcds=org.apache.iceberg.spark.SparkSessionCatalog —-conf spark.sql.catalog.tpcds.type=hive --conf spark.sql.catalog.tpcds.warehouse=/tmp/iceberg_warehouse/tpcds --executor-memory 2G   --num-executors 2  --executor-cores 2 -i /Users/ashahid/workspace/spark-tpcds-perf/spark-sql-perf/src/test/scala/com/databricks/spark/sql/perf/gendata.scala
