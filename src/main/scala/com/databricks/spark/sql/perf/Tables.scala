@@ -263,11 +263,33 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       }
     }
 
+    def createInternalHiveTable(location: String, format: String, databaseName: String,
+        overwrite: Boolean, discoverPartitions: Boolean = true): Unit = {
+
+      val qualifiedTableName = databaseName + "." + name
+      val tableExists = sqlContext.tableNames(databaseName).contains(name)
+      if (overwrite) {
+        sqlContext.sql(s"DROP TABLE IF EXISTS $databaseName.$name")
+      }
+      if (!tableExists || overwrite) {
+        println(s"Creating internal table $name in database $databaseName using data stored in $location.")
+        log.info(s"Creating internal table $name in database $databaseName using data stored in $location.")
+        val temp = qualifiedTableName + "_temp"
+        val df = sqlContext.createExternalTable(temp, location, format)
+        df.write.format("parquet").mode(SaveMode.Overwrite).saveAsTable(qualifiedTableName)
+        sqlContext.sql(s"DROP TABLE IF EXISTS $temp")
+      }
+      if (partitionColumns.nonEmpty && discoverPartitions) {
+        throw new UnsupportedOperationException("not implemented partitiooned clause")
+      }
+    }
+
     def createTemporaryTable(location: String, format: String): Unit = {
       println(s"Creating temporary table $name using data stored in $location.")
       log.info(s"Creating temporary table $name using data stored in $location.")
       sqlContext.read.format(format).load(location).createOrReplaceTempView(name)
     }
+
 
     def analyzeTable(databaseName: String, analyzeColumns: Boolean = false): Unit = {
       println(s"Analyzing table $name.")
@@ -324,6 +346,25 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     filtered.foreach { table =>
       val tableLocation = s"$location/${table.name}"
       table.createExternalTable(tableLocation, format, databaseName, overwrite, discoverPartitions)
+    }
+    sqlContext.sql(s"USE $databaseName")
+    println(s"The current database has been set to $databaseName.")
+    log.info(s"The current database has been set to $databaseName.")
+  }
+
+  def createInternalTables(location: String, format: String, databaseName: String,
+      overwrite: Boolean, discoverPartitions: Boolean, tableFilter: String = ""): Unit = {
+
+    val filtered = if (tableFilter.isEmpty) {
+      tables
+    } else {
+      tables.filter(_.name == tableFilter)
+    }
+
+    sqlContext.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
+    filtered.foreach { table =>
+      val tableLocation = s"$location/${table.name}"
+      table.createInternalHiveTable(tableLocation, format, databaseName, overwrite, discoverPartitions)
     }
     sqlContext.sql(s"USE $databaseName")
     println(s"The current database has been set to $databaseName.")

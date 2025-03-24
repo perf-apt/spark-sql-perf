@@ -4,6 +4,7 @@ import com.databricks.spark.sql.perf.mllib.MLBenchmarks.sqlContext.tables
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
+val createExternalHiveTables = false
 // Note: Declare "sqlContext" for Spark 2.x version
 val useHive = true
 // val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -35,7 +36,11 @@ val tables = new TPCDSTables(sqlContext,
   scaleFactor = scaleFactor,
   useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
   useStringForDate = false) // true to replace DateType with StringType
-tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+if (createExternalHiveTables) {
+  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+} else {
+  tables.createInternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+}
 
 
 val tpcds = new TPCDS(sqlContext = sqlContext)

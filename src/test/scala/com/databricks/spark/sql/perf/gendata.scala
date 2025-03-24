@@ -1,6 +1,7 @@
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
+val createExternalHiveTables = false
 // Note: Declare "sqlContext" for Spark 2.x version
 val useHive = true
 // val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -49,7 +50,11 @@ tables.genData(
 
 // Create metastore tables in a specified database for your data.
 // Once tables are created, the current database will be switched to the specified database.
-tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+if (createExternalHiveTables) {
+  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+} else {
+  tables.createInternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+}
 
 // Or, if you want to create temporary tables
 // tables.createTemporaryTables(location, format)
