@@ -159,7 +159,7 @@ class Query(
         result = result,
         queryExecution = dataFrame.queryExecution.toString,
         breakDown = breakdownResults,
-        numRowsOutput = numRowsOutput)
+        numRows = numRowsOutput)
     } catch {
       case e: Exception =>
         val sw: StringWriter = new StringWriter();
