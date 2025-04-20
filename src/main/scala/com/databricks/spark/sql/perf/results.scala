@@ -90,7 +90,8 @@ case class BenchmarkResult(
     queryExecution: Option[String] = None,
     failure: Option[Failure] = None,
     mlResult: Option[Array[MLMetric]] = None,
-    benchmarkId: Option[String] = None)
+    benchmarkId: Option[String] = None,
+    numRows: Int = 0)
 
 /**
  * The execution time of a subtree of the query plan tree of a specific query.

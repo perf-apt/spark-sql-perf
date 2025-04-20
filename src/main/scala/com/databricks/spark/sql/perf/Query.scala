@@ -118,14 +118,22 @@ class Query(
       // Note: queryExecution.{logical, analyzed, optimizedPlan, executedPlan} has been already
       // lazily evaluated above, so below we will count only execution time.
       var result: Option[Long] = None
+      var numRowsOutput = 0
       val executionTime = measureTimeMs {
         executionMode match {
-          case ExecutionMode.CollectResults => dataFrame.collect()
-          case ExecutionMode.ForeachResults => dataFrame.foreach { _ => ():Unit }
+          case ExecutionMode.CollectResults =>
+               val x = dataFrame.collect()
+               numRowsOutput = x.length
+
+          case ExecutionMode.ForeachResults =>
+            numRowsOutput = dataFrame.collect().length
+            dataFrame.foreach { _ => ():Unit }
+
           case ExecutionMode.WriteParquet(location) =>
             dataFrame.write.parquet(s"$location/$name.parquet")
           case ExecutionMode.HashResults =>
             // SELECT SUM(CRC32(CONCAT_WS(", ", *))) FROM (benchmark query)
+            numRowsOutput = dataFrame.collect().length
             val row =
               dataFrame
                 .selectExpr(s"sum(crc32(concat_ws(',', *)))")
@@ -150,7 +158,8 @@ class Query(
         executionTime = executionTime,
         result = result,
         queryExecution = dataFrame.queryExecution.toString,
-        breakDown = breakdownResults)
+        breakDown = breakdownResults,
+        numRowsOutput = numRowsOutput)
     } catch {
       case e: Exception =>
         val sw: StringWriter = new StringWriter();
