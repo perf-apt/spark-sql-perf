@@ -1,7 +1,7 @@
 To run the tpcds tests.
 
 build this branch's jar using
-sbt clean package 
+sbt clean package -J-Djava.security.manager=allow
 
 Once the jar is created.
 
