@@ -263,8 +263,9 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       }
     }
 
-    def createInternalHiveTable(location: String, format: String, databaseName: String,
-        overwrite: Boolean, discoverPartitions: Boolean = true): Unit = {
+    def  createInternalHiveTable(location: String, format: String, databaseName: String,
+        overwrite: Boolean, numSplits: Option[Int], discoverPartitions: Boolean = true,
+        sortOnCol: Boolean): Unit = {
 
       val qualifiedTableName = databaseName + "." + name
       val tableExists = sqlContext.tableNames(databaseName).contains(name)
@@ -275,8 +276,24 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
         println(s"Creating internal table $name in database $databaseName using data stored in $location.")
         log.info(s"Creating internal table $name in database $databaseName using data stored in $location.")
         val temp = qualifiedTableName + "_temp"
-        val df = sqlContext.createExternalTable(temp, location, format)
-        df.write.format("parquet").mode(SaveMode.Overwrite).saveAsTable(qualifiedTableName)
+        val tempdf = sqlContext.createExternalTable(temp, location, format)
+        val df = numSplits.map(x => tempdf.repartition(x)).getOrElse(tempdf)
+        val sortedDf = if (sortOnCol) {
+          if (qualifiedTableName.toLowerCase.contains("store_sales")) {
+            df.sortWithinPartitions("ss_sold_date_sk") //.orderBy("ss_item_sk").orderBy("ss_store_sk")
+          } else if (qualifiedTableName.toLowerCase.contains("web_sales")) {
+            df.sortWithinPartitions("ws_sold_date_sk")
+          } else if (qualifiedTableName.toLowerCase.contains("catalog_sales")) {
+            df.sortWithinPartitions("cs_sold_date_sk")
+          } else {
+            df
+          }
+        } else {
+          df
+        }
+
+        sortedDf.write.format("parquet").mode(SaveMode.Overwrite).saveAsTable(qualifiedTableName)
+
         sqlContext.sql(s"DROP TABLE IF EXISTS $temp")
       }
       if (partitionColumns.nonEmpty && discoverPartitions) {
@@ -353,7 +370,9 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
   }
 
   def createInternalTables(location: String, format: String, databaseName: String,
-      overwrite: Boolean, discoverPartitions: Boolean, tableFilter: String = ""): Unit = {
+      overwrite: Boolean, discoverPartitions: Boolean, tableFilter: String = "",
+      numSplits: Option[Int] = None,
+      sortOnCol: Boolean = true): Unit = {
 
     val filtered = if (tableFilter.isEmpty) {
       tables
@@ -364,7 +383,8 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     sqlContext.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
     filtered.foreach { table =>
       val tableLocation = s"$location/${table.name}"
-      table.createInternalHiveTable(tableLocation, format, databaseName, overwrite, discoverPartitions)
+      table.createInternalHiveTable(tableLocation, format, databaseName, overwrite,
+        numSplits, discoverPartitions, sortOnCol)
     }
     sqlContext.sql(s"USE $databaseName")
     println(s"The current database has been set to $databaseName.")

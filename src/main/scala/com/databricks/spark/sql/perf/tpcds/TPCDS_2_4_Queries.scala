@@ -43,7 +43,7 @@ trait Tpcds_2_4_Queries extends Benchmark {
   )
 
 }else {
-  Seq("q17") //59//58
+  Seq("q67") //59//58
 }
 
 

@@ -7,7 +7,7 @@ organization := "com.databricks"
 
 // for scala 2.12 use  2.12.17 version
 // for scala 2.13 use 2.13.10
-scalaVersion := "2.13.10"
+scalaVersion := "2.13.16"
 
 crossScalaVersions := Seq("2.12.10")
 
@@ -18,7 +18,7 @@ licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0")
 
 // for scala 2.12 use spark 3.4.0
 // for scala 2.13 use spark 4.0.0-SNAPSHOT
-sparkVersion := "4.0.0-SNAPSHOT"
+sparkVersion := "4.1.0-SNAPSHOT"
 
 sparkComponents ++= Seq("sql", "hive", "mllib")
 resolvers += Resolver.mavenLocal

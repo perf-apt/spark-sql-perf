@@ -26,7 +26,7 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 // val rootDir = "/Users/ashahid/workspace/tpcds-benchmark/generated_data/" // root directory of location to create data in.
 val rootDir = "/opt/tpcds-benchmark/tpcds-data" // root directory of location to create data in.
 val databaseName = "default" // name of database to create.
-val scaleFactor = "50" // scaleFactor defines the size of the dataset to generate (in GB).
+val scaleFactor = "200" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
@@ -38,7 +38,7 @@ val tables = new TPCDSTables(sqlContext,
 
 // Create the specified database
 // sqlContext.sql(s"create database $databaseName")
-
+/*
 
 tables.genData(
   location = rootDir,
@@ -48,11 +48,14 @@ tables.genData(
   clusterByPartitionColumns = false, // shuffle to get partitions coalesced into single files.
   filterOutNullPartitionValues = false, // true to filter out the partition with NULL key value
   tableFilter = "", // "" means generate all tables
-  numPartitions = 600) // how many dsdgen partitions to run - number of input tasks.
-
-val numSplits : Option[Int] = Some(600)
+  numPartitions = 10) // how many dsdgen partitions to run - number of input tasks.
+*/
 // Create metastore tables in a specified database for your data.
 // Once tables are created, the current database will be switched to the specified database.
+val numSplits : Option[Int] = Some(240)
+// Create metastore tables in a specified database for your data.
+// Once tables are created, the current database will be switched to the specified database.
+
 if (createExternalHiveTables) {
   tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
 } else {
@@ -64,30 +67,5 @@ if (createExternalHiveTables) {
 // tables.createTemporaryTables(location, format)
 
 // For CBO only, gather statistics on all columns:
- tables.analyzeTables(databaseName, analyzeColumns = false)
+tables.analyzeTables(databaseName, analyzeColumns = false)
 
-
-
-import com.databricks.spark.sql.perf.tpcds.TPCDS
-
-
-
-val tpcds = new TPCDS (sqlContext = sqlContext)
-// Set:
-
-sqlContext.sql(s"use $databaseName")
-
-if (!useHive) {
-  sqlContext.sql(s"use catalog spark_catalog")
-}
-val resultLocation = "/data/tpcds-benchmark/results/wf" // place to write results
-val iterations = 3 // how many iterations of queries to run.
-val queries = tpcds.tpcds2_4Queries // queries to run.
-val timeout = 24*60*60 // timeout, in seconds.
-// Run:
-val experiment = tpcds.runExperiment(
-  queries,
-  iterations = iterations,
-  resultLocation = resultLocation,
-  forkThread = true)
-experiment.waitForFinish(timeout)
