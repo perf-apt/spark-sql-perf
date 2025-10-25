@@ -174,10 +174,25 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       overwrite: Boolean,
       clusterByPartitionColumns: Boolean,
       filterOutNullPartitionValues: Boolean,
-      numPartitions: Int): Unit = {
+      numPartitions: Int,
+      sortOnCol: Boolean): Unit = {
       val mode = if (overwrite) SaveMode.Overwrite else SaveMode.Ignore
 
-      val data = df(format != "text", numPartitions)
+      val dataTemp = df(format != "text", numPartitions)
+      val data = if (sortOnCol) {
+        if (name.toLowerCase.contains("store_sales")) {
+          dataTemp.sortWithinPartitions("ss_sold_date_sk")
+        } else if (name.toLowerCase.contains("web_sales")) {
+          dataTemp.sortWithinPartitions("ws_sold_date_sk")
+        } else if (name.toLowerCase.contains("catalog_sales")) {
+          dataTemp.sortWithinPartitions("cs_sold_date_sk")
+        } else {
+          dataTemp
+        }
+      } else {
+        dataTemp
+      }
+
       val tempTableName = s"${name}_text"
       data.createOrReplaceTempView(tempTableName)
 
@@ -329,7 +344,8 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       clusterByPartitionColumns: Boolean,
       filterOutNullPartitionValues: Boolean,
       tableFilter: String = "",
-      numPartitions: Int = 100): Unit = {
+      numPartitions: Int = 100,
+      sortOnCol: Boolean = true): Unit = {
     var tablesToBeGenerated = if (partitionTables) {
       tables
     } else {
@@ -346,7 +362,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     tablesToBeGenerated.foreach { table =>
       val tableLocation = s"$location/${table.name}"
       table.genData(tableLocation, format, overwrite, clusterByPartitionColumns,
-        filterOutNullPartitionValues, numPartitions)
+        filterOutNullPartitionValues, numPartitions, sortOnCol)
     }
   }
 

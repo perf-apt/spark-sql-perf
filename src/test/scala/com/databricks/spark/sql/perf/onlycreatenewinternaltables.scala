@@ -1,7 +1,7 @@
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
-val createExternalHiveTables = false
+val createExternalHiveTables = true
 // Note: Declare "sqlContext" for Spark 2.x version
 val useHive = true
 // val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -24,13 +24,13 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 // Note: Here my env is using MapRFS, so I changed it to "hdfs:///tpcds".
 // Note: If you are using HDFS, the format should be like "hdfs://namenode:9000/tpcds"
 // val rootDir = "/Users/ashahid/workspace/tpcds-benchmark/generated_data/" // root directory of location to create data in.
-val rootDir = "/opt/tpcds-benchmark/tpcds-data" // root directory of location to create data in.
+val rootDir = "hdfs://ec2-3-149-12-129.us-east-2.compute.amazonaws.com:9000//tpcds/data"
 val databaseName = "default" // name of database to create.
-val scaleFactor = "200" // scaleFactor defines the size of the dataset to generate (in GB).
+val scaleFactor = "1000" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
-  dsdgenDir = "/opt/tpcds-benchmark/tpcds-kit/tools/", // location of dsdgen
+  dsdgenDir = "/mnt/data1/tpcds-benchmark/tpcds-kit/tools/", // location of dsdgen
   scaleFactor = scaleFactor,
   useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
   useStringForDate = false) // true to replace DateType with StringType
@@ -52,7 +52,7 @@ tables.genData(
 */
 // Create metastore tables in a specified database for your data.
 // Once tables are created, the current database will be switched to the specified database.
-val numSplits : Option[Int] = Some(240)
+val numSplits : Option[Int] = None
 // Create metastore tables in a specified database for your data.
 // Once tables are created, the current database will be switched to the specified database.
 

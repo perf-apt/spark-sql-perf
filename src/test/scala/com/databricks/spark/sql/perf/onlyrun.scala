@@ -23,9 +23,10 @@
         // Set:
         // Note: Here my env is using MapRFS, so I changed it to "hdfs:///tpcds".
         // Note: If you are using HDFS, the format should be like "hdfs://namenode:9000/tpcds"
-        val rootDir = "/opt/tpcds-benchmark/tpcds-data/" // root directory of location to create data in.
+        val rootDir = "hdfs://10.40.1.11:9000//tpcds/data" // root directory of location to create data in.
         val databaseName = "default" // name of database to create.
-        val scaleFactor = "50" // scaleFactor defines the size of the dataset to generate (in GB).
+        val scaleFactor = "3000" // scaleFactor defines the size of the dataset to generate (in
+        // GB).
         val format = "parquet"
 
 
@@ -50,7 +51,7 @@
         // For CBO only, gather statistics on all columns:
         tables.analyzeTables(databaseName, analyzeColumns = false)
 
-        val resultLocation = "/opt/tpcds-benchmark/tpcds-results/tabbydb/100GB" // place to write
+        val resultLocation = "hdfs://10.40.1.11:9000//tpcds/results" // place to write
         // results
         val iterations = 1 // how many iterations of queries to run.
         val queries = tpcds.tpcds2_4Queries // queries to run.
@@ -63,7 +64,17 @@
           forkThread = true)
         experiment.waitForFinish(timeout)
 
-         val result = spark.read.json(resultLocation).filter(s"timestamp=${experiment.timestamp}")
+        import org.apache.spark.sql.functions._
+        val result1 = spark.read.json(resultLocation).filter(s"timestamp=${experiment.timestamp}").
+          select (explode($"results").as("r"))
+        result1.createOrReplaceTempView("result1")
+        spark.sql("select r.name, r.numRows,  bround((r.parsingTime+r.analysisTime+r.optimizationTime+r" +
+          ".planningTime+r.executionTime)/1000.0,1) as Runtime_sec  from result1").show(1000)
+
+
+
+
+        val result = spark.read.json(resultLocation).filter(s"timestamp=${experiment.timestamp}")
            .select(explode($"results").as("r"))
         result.createOrReplaceTempView("result")
         spark.sql("select sum(bround((r.parsingTime+r.analysisTime+r.optimizationTime+r" +

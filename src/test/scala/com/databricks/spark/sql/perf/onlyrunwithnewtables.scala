@@ -4,7 +4,7 @@ import com.databricks.spark.sql.perf.mllib.MLBenchmarks.sqlContext.tables
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
-val createExternalHiveTables = false
+val createExternalHiveTables = true
 // Note: Declare "sqlContext" for Spark 2.x version
 val useHive = true
 // val sqlContext = new org.apache.spark.sql.SQLContext(sc)

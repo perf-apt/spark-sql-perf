@@ -1,7 +1,7 @@
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
-val createExternalHiveTables = false
+val createExternalHiveTables = true
 // Note: Declare "sqlContext" for Spark 2.x version
 val useHive = true
 // val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -24,9 +24,9 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 // Note: Here my env is using MapRFS, so I changed it to "hdfs:///tpcds".
 // Note: If you are using HDFS, the format should be like "hdfs://namenode:9000/tpcds"
 // val rootDir = "/Users/ashahid/workspace/tpcds-benchmark/generated_data/" // root directory of location to create data in.
-val rootDir = "/opt/tpcds-benchmark/tpcds-data" // root directory of location to create data in.
+val rootDir = "hdfs://10.40.1.11:9000//tpcds/data" // root directory of location to create data in.
 val databaseName = "default" // name of database to create.
-val scaleFactor = "50" // scaleFactor defines the size of the dataset to generate (in GB).
+val scaleFactor = "3000" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
@@ -48,13 +48,16 @@ tables.genData(
   clusterByPartitionColumns = false, // shuffle to get partitions coalesced into single files.
   filterOutNullPartitionValues = false, // true to filter out the partition with NULL key value
   tableFilter = "", // "" means generate all tables
-  numPartitions = 600) // how many dsdgen partitions to run - number of input tasks.
+  numPartitions = 1200,
+  sortOnCol = true
+  ) // how many dsdgen partitions to run - number of input tasks.
 
-val numSplits : Option[Int] = Some(600)
+val numSplits : Option[Int] = None
 // Create metastore tables in a specified database for your data.
 // Once tables are created, the current database will be switched to the specified database.
 if (createExternalHiveTables) {
-  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true,
+    discoverPartitions = false)
 } else {
   tables.createInternalTables(rootDir, "parquet", s"$databaseName", overwrite = true,
     discoverPartitions = false, numSplits = numSplits, sortOnCol = true)
