@@ -1,3 +1,4 @@
+
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import org.apache.spark.sql.SparkSession
 
@@ -24,13 +25,13 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 // Note: Here my env is using MapRFS, so I changed it to "hdfs:///tpcds".
 // Note: If you are using HDFS, the format should be like "hdfs://namenode:9000/tpcds"
 // val rootDir = "/Users/ashahid/workspace/tpcds-benchmark/generated_data/" // root directory of location to create data in.
-val rootDir = "hdfs://10.40.1.11:9000//tpcds/data" // root directory of location to create data in.
+val rootDir = "hdfs://10.40.1.16:9000//tpcds/data" // root directory of location to create data in.
 val databaseName = "default" // name of database to create.
-val scaleFactor = "3000" // scaleFactor defines the size of the dataset to generate (in GB).
+val scaleFactor = "1000" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
-  dsdgenDir = "/opt/tpcds-benchmark/tpcds-kit/tools/", // location of dsdgen
+  dsdgenDir = "/opt/tpcds/tpcds-kit/tools/", // location of dsdgen
   scaleFactor = scaleFactor,
   useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
   useStringForDate = false) // true to replace DateType with StringType
@@ -48,9 +49,9 @@ tables.genData(
   clusterByPartitionColumns = false, // shuffle to get partitions coalesced into single files.
   filterOutNullPartitionValues = false, // true to filter out the partition with NULL key value
   tableFilter = "", // "" means generate all tables
-  numPartitions = 1200,
+  numPartitions = 1600,
   sortOnCol = true
-  ) // how many dsdgen partitions to run - number of input tasks.
+) // how many dsdgen partitions to run - number of input tasks.
 
 val numSplits : Option[Int] = None
 // Create metastore tables in a specified database for your data.
@@ -67,8 +68,7 @@ if (createExternalHiveTables) {
 // tables.createTemporaryTables(location, format)
 
 // For CBO only, gather statistics on all columns:
- tables.analyzeTables(databaseName, analyzeColumns = false)
-
+tables.analyzeTables(databaseName, analyzeColumns = false)
 
 
 import com.databricks.spark.sql.perf.tpcds.TPCDS
@@ -83,8 +83,10 @@ sqlContext.sql(s"use $databaseName")
 if (!useHive) {
   sqlContext.sql(s"use catalog spark_catalog")
 }
-val resultLocation = "/data/tpcds-benchmark/results/wf" // place to write results
-val iterations = 3 // how many iterations of queries to run.
+
+val resultLocation = "hdfs://10.40.1.16:9000/tpcds/results" //
+// hdfs://10.40.1.11:9000//tpcds/results" // place to write results
+val iterations = 1 // how many iterations of queries to run.
 val queries = tpcds.tpcds2_4Queries // queries to run.
 val timeout = 24*60*60 // timeout, in seconds.
 // Run:
@@ -94,3 +96,14 @@ val experiment = tpcds.runExperiment(
   resultLocation = resultLocation,
   forkThread = true)
 experiment.waitForFinish(timeout)
+
+import org.apache.spark.sql.functions._
+val result1 = spark.read.json(resultLocation).filter(s"timestamp=${experiment.timestamp}").
+  select (explode($"results").as("r"))
+result1.createOrReplaceTempView("result1")
+spark.sql("select r.name, r.numRows,  bround((r.parsingTime+r.analysisTime+r.optimizationTime+r" +
+  ".planningTime+r.executionTime)/1000.0,1) as Runtime_sec  from result1").show(1000)
+
+
+spark.sql("select sum(bround((r.parsingTime+r.analysisTime+r.optimizationTime+r" +
+  ".planningTime+r.executionTime)/1000.0,1)) as total_Runtime_sec  from result1").show(1000)

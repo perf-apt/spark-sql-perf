@@ -186,7 +186,22 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
           dataTemp.sortWithinPartitions("ws_sold_date_sk")
         } else if (name.toLowerCase.contains("catalog_sales")) {
           dataTemp.sortWithinPartitions("cs_sold_date_sk")
-        } else {
+        } else if (name.toLowerCase.contains("catalog_returns")) {
+          dataTemp.sortWithinPartitions("cr_returned_date_sk")
+        } else if (name.toLowerCase.contains("inventory")) {
+          dataTemp.sortWithinPartitions("inv_date_sk")
+        }
+
+        else if (name.toLowerCase.contains("store_returns")) {
+          dataTemp.sortWithinPartitions("sr_returned_date_sk")
+        }
+
+        else if (name.toLowerCase.contains("web_returns")) {
+          dataTemp.sortWithinPartitions("wr_returned_date_sk")
+        }
+
+
+        else {
           dataTemp
         }
       } else {

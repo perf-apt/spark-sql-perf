@@ -24,13 +24,13 @@ sqlContext.setConf("spark.sql.catalog.spark_catalog.warehouse", "/tmp/iceberg_wa
 // Note: Here my env is using MapRFS, so I changed it to "hdfs:///tpcds".
 // Note: If you are using HDFS, the format should be like "hdfs://namenode:9000/tpcds"
 // val rootDir = "/Users/ashahid/workspace/tpcds-benchmark/generated_data/" // root directory of location to create data in.
-val rootDir = "hdfs://ec2-3-149-12-129.us-east-2.compute.amazonaws.com:9000//tpcds/data"
+val rootDir = "hdfs://10.40.1.16:9000//tpcds/data"
 val databaseName = "default" // name of database to create.
 val scaleFactor = "1000" // scaleFactor defines the size of the dataset to generate (in GB).
 val format = "parquet" // valid spark format like parquet "parquet".
 // Run:
 val tables = new TPCDSTables(sqlContext,
-  dsdgenDir = "/mnt/data1/tpcds-benchmark/tpcds-kit/tools/", // location of dsdgen
+  dsdgenDir = "/opt/tpcds/tpcds-kit/tools/", // location of dsdgen
   scaleFactor = scaleFactor,
   useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
   useStringForDate = false) // true to replace DateType with StringType
@@ -57,7 +57,8 @@ val numSplits : Option[Int] = None
 // Once tables are created, the current database will be switched to the specified database.
 
 if (createExternalHiveTables) {
-  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true, discoverPartitions = false)
+  tables.createExternalTables(rootDir, "parquet", s"$databaseName", overwrite = true,
+    discoverPartitions = false)
 } else {
   tables.createInternalTables(rootDir, "parquet", s"$databaseName", overwrite = true,
     discoverPartitions = false, numSplits = numSplits, sortOnCol = true)
