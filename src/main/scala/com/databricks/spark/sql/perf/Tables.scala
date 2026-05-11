@@ -331,6 +331,45 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       }
     }
 
+    def  createIcebergTable(location: String, format: String, databaseName: String,
+      overwrite: Boolean, numSplits: Option[Int], discoverPartitions: Boolean = false,
+      sortOnCol: Boolean): Unit = {
+
+      val qualifiedTableName = databaseName + "." + name
+      val tableExists = sqlContext.tableNames(databaseName).contains(name)
+      if (overwrite) {
+        sqlContext.sql(s"DROP TABLE IF EXISTS $databaseName.$name")
+      }
+      if (!tableExists || overwrite) {
+        println(s"Creating internal table $name in database $databaseName using data stored in $location.")
+        log.info(s"Creating internal table $name in database $databaseName using data stored in $location.")
+        val temp = qualifiedTableName + "_temp"
+        val tempdf = sqlContext.createExternalTable(temp, location, format)
+        val df = numSplits.map(x => tempdf.repartition(x)).getOrElse(tempdf)
+        val sortedDf = if (sortOnCol) {
+          if (qualifiedTableName.toLowerCase.contains("store_sales")) {
+            df.sortWithinPartitions("ss_sold_date_sk") //.orderBy("ss_item_sk").orderBy("ss_store_sk")
+          } else if (qualifiedTableName.toLowerCase.contains("web_sales")) {
+            df.sortWithinPartitions("ws_sold_date_sk")
+          } else if (qualifiedTableName.toLowerCase.contains("catalog_sales")) {
+            df.sortWithinPartitions("cs_sold_date_sk")
+          } else {
+            df
+          }
+        } else {
+          df
+        }
+
+        sortedDf.writeTo(qualifiedTableName).tableProperty("write.format.default", "parquet")
+          .using("iceberg").create
+
+        sqlContext.sql(s"DROP TABLE IF EXISTS $temp")
+      }
+      if (partitionColumns.nonEmpty && discoverPartitions) {
+        throw new UnsupportedOperationException("not implemented partitiooned clause")
+      }
+    }
+
     def createTemporaryTable(location: String, format: String): Unit = {
       println(s"Creating temporary table $name using data stored in $location.")
       log.info(s"Creating temporary table $name using data stored in $location.")
@@ -394,6 +433,28 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     filtered.foreach { table =>
       val tableLocation = s"$location/${table.name}"
       table.createExternalTable(tableLocation, format, databaseName, overwrite, discoverPartitions)
+    }
+    sqlContext.sql(s"USE $databaseName")
+    println(s"The current database has been set to $databaseName.")
+    log.info(s"The current database has been set to $databaseName.")
+  }
+
+  def createIcebergTables(location: String, format: String, databaseName: String,
+    overwrite: Boolean, discoverPartitions: Boolean, tableFilter: String = "",
+                          numSplits: Option[Int] = None,
+                          sortOnCol: Boolean = true): Unit = {
+
+    val filtered = if (tableFilter.isEmpty) {
+      tables
+    } else {
+      tables.filter(_.name == tableFilter)
+    }
+
+    sqlContext.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
+    filtered.foreach { table =>
+      val tableLocation = s"$location/${table.name}"
+      table.createIcebergTable(tableLocation, format, databaseName, overwrite,
+        numSplits, discoverPartitions, sortOnCol)
     }
     sqlContext.sql(s"USE $databaseName")
     println(s"The current database has been set to $databaseName.")
