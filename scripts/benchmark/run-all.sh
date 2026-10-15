@@ -7,6 +7,7 @@
 #   bench     ITERATIONS x 4 combinations, alternating order, resumable (04)
 #   report    medians per query, compile vs execution, CSV           (05)
 #   all       gendata -> tables -> bench -> report
+#   confdiff  show differences between the two distributions' conf/ folders
 #
 # Every step is safe to re-run: finished tables / finished queries are skipped.
 set -euo pipefail
@@ -56,8 +57,13 @@ shell() {
     fmt_conf=("${ICEBERG_CONF[@]}")
   fi
   jars="$(join_jars "$jars" "${EXTRA_JARS:-}")"
-  echo ">>> [$engine/$format] $(basename "$script")  log: $LOG_DIR/$log.log"
+  echo ">>> [$engine/$format] $(basename "$script")  SPARK_HOME=$home  log: $LOG_DIR/$log.log"
+  # Pin SPARK_HOME and SPARK_CONF_DIR to the distribution being run. Otherwise a SPARK_HOME /
+  # SPARK_CONF_DIR exported in your shell profile would silently take over (wrong engine or conf).
+  # Each distribution's own conf/spark-env.sh and conf/spark-defaults.conf ARE loaded; anything
+  # passed below on the command line (from bench.env) overrides spark-defaults.conf.
   # shellcheck disable=SC2086
+  SPARK_HOME="$home" SPARK_CONF_DIR="$home/conf" \
   "$home/bin/spark-shell" --master "$MASTER" --jars "$jars" \
     $COMMON_CONF $EXTRA_SPARK_CONF \
     "${HIVE_CONF[@]}" ${fmt_conf[@]+"${fmt_conf[@]}"} "${COMMON_BENCH_CONF[@]}" ${@+"$@"} \
@@ -102,12 +108,25 @@ step_report() {
   shell stock none "$HERE/05-report.scala" "05-report-${RUN_ID}"
 }
 
+# Show where the two distributions' conf folders differ. Anything listed here is a setting one
+# engine runs with and the other doesn't — decide whether it belongs in bench.env (shared) instead.
+step_confdiff() {
+  local f
+  for f in spark-defaults.conf spark-env.sh hive-site.xml; do
+    echo "===== conf/$f   (< stock   > tabbydb)"
+    diff <(grep -vE '^\s*(#|$)' "$STOCK_SPARK_HOME/conf/$f" 2>/dev/null | sort) \
+         <(grep -vE '^\s*(#|$)' "$TABBY_SPARK_HOME/conf/$f" 2>/dev/null | sort) && echo "(identical or absent in both)"
+  done
+  return 0
+}
+
 case "$STEP" in
+  confdiff) step_confdiff ;;
   gendata) step_gendata ;;
   tables)  step_tables ;;
   bench)   step_bench ;;
   report)  step_report ;;
   all)     step_gendata; step_tables; step_bench; step_report ;;
-  *) sed -n '2,12p' "$0"; exit 1 ;;
+  *) sed -n '2,13p' "$0"; exit 1 ;;
 esac
 echo ">>> step '$STEP' finished"
