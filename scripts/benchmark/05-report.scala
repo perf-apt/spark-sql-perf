@@ -18,7 +18,7 @@ try {
   val out       = s"$resultDir/report/$runId"
   val excluded  = p("excludeQueries", "").split(",").map(_.trim).filter(_.nonEmpty).toSet
 
-  val raw = spark.read.json(s"$resultDir/raw").where($"tags.runId" === runId)
+  val raw = spark.read.option("recursiveFileLookup", "true").json(s"$resultDir/raw").where($"tags.runId" === runId)
   if (excluded.nonEmpty) println(s"[report] excluded by EXCLUDE_QUERIES: ${excluded.toSeq.sorted.mkString(", ")}")
   val r = raw.select($"tags.engine".as("engine"), $"tags.format".as("format"),
                      $"tags.iter".as("iter"), explode($"results").as("r"))

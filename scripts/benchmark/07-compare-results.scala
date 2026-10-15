@@ -36,7 +36,7 @@ try {
   // ── 1. Row counts from the timed runs ──────────────────────────────────────
   val rawDir = s"$resultDir/raw"
   if (new Path(rawDir).getFileSystem(hconf).exists(new Path(rawDir))) {
-    val r = spark.read.json(rawDir).where($"tags.runId" === runId)
+    val r = spark.read.option("recursiveFileLookup", "true").json(rawDir).where($"tags.runId" === runId)
       .select($"tags.engine".as("engine"), $"tags.format".as("format"), $"tags.iter".as("iter"),
               explode($"results").as("r"))
       .select(concat_ws("-", $"engine", $"format").as("combo"), $"iter", $"r.name".as("query"),

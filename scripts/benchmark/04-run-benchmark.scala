@@ -66,7 +66,7 @@ try {
   val fs = new Path(rawDir).getFileSystem(spark.sparkContext.hadoopConfiguration)
   val done: Set[String] =
     if (!fs.exists(new Path(rawDir))) Set.empty
-    else spark.read.json(rawDir)
+    else spark.read.option("recursiveFileLookup", "true").json(rawDir)
       .where($"tags.runId" === runId && $"tags.engine" === engine &&
              $"tags.format" === format && $"tags.iter" === iter)
       .select(explode($"results.name")).as[String].collect().toSet
@@ -92,7 +92,7 @@ try {
   }
 
   // Summary for this invocation.
-  val r = spark.read.json(rawDir)
+  val r = spark.read.option("recursiveFileLookup", "true").json(rawDir)
     .where($"tags.runId" === runId && $"tags.engine" === engine &&
            $"tags.format" === format && $"tags.iter" === iter)
     .select(explode($"results").as("r"))
