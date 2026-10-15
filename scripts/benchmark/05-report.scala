@@ -1,0 +1,67 @@
+// 05-report.scala — summarise a campaign: median per query per (engine, format), compile vs execution.
+//
+// Params: resultDir, runId
+// Writes CSVs to <resultDir>/report/<runId>/{per_query,summary}
+
+import org.apache.spark.sql.functions._
+
+def p(k: String, d: String = null): String =
+  spark.conf.getOption(s"spark.bench.$k")
+    .orElse(spark.sparkContext.getConf.getOption(s"spark.bench.$k"))
+    .orElse(Option(d))
+    .getOrElse(throw new IllegalArgumentException(s"Missing --conf spark.bench.$k"))
+
+try {
+  import spark.implicits._
+  val resultDir = p("resultDir").stripSuffix("/")
+  val runId     = p("runId")
+  val out       = s"$resultDir/report/$runId"
+
+  val raw = spark.read.json(s"$resultDir/raw").where($"tags.runId" === runId)
+  val r = raw.select($"tags.engine".as("engine"), $"tags.format".as("format"),
+                     $"tags.iter".as("iter"), explode($"results").as("r"))
+  val hasFailure = r.select("r.*").columns.contains("failure")
+
+  val rows = r.select(
+    $"engine", $"format", $"iter", $"r.name".as("query"),
+    (expr("coalesce(r.parsingTime,0)+coalesce(r.analysisTime,0)+coalesce(r.optimizationTime,0)+coalesce(r.planningTime,0)") / 1000).as("compile_s"),
+    (coalesce($"r.executionTime", lit(0.0)) / 1000).as("exec_s"),
+    (if (hasFailure) $"r.failure".isNotNull else lit(false)).as("failed"))
+    .withColumn("total_s", $"compile_s" + $"exec_s")
+
+  // Median across iterations (exact percentile; only 2-3 values per query).
+  val perQuery = rows.groupBy("engine", "format", "query").agg(
+      count(lit(1)).as("iters"),
+      bround(expr("percentile(compile_s, 0.5)"), 2).as("compile_s"),
+      bround(expr("percentile(exec_s, 0.5)"), 2).as("exec_s"),
+      bround(expr("percentile(total_s, 0.5)"), 2).as("total_s"),
+      sum($"failed".cast("int")).as("failures"))
+    .orderBy("format", "query", "engine")
+
+  val summary = perQuery.groupBy("engine", "format").agg(
+      count(lit(1)).as("queries"),
+      sum("failures").as("failures"),
+      bround(sum("compile_s"), 1).as("compile_s"),
+      bround(sum("exec_s"), 1).as("exec_s"),
+      bround(sum("total_s"), 1).as("total_s"))
+    .orderBy("format", "engine")
+
+  perQuery.coalesce(1).write.mode("overwrite").option("header", "true").csv(s"$out/per_query")
+  summary.coalesce(1).write.mode("overwrite").option("header", "true").csv(s"$out/summary")
+
+  summary.show(false)
+
+  // TabbyDB vs stock, per format (positive % = TabbyDB faster).
+  val s = summary.collect().map(x => (x.getAs[String]("engine"), x.getAs[String]("format")) -> x.getAs[Double]("total_s")).toMap
+  s.keys.map(_._2).toSeq.distinct.sorted.foreach { f =>
+    (s.get(("stock", f)), s.get(("tabbydb", f))) match {
+      case (Some(a), Some(b)) => println(f"[report] $f%-8s stock $a%10.1f s   tabbydb $b%10.1f s   improvement ${(a - b) / a * 100}%5.1f%%")
+      case _ => println(s"[report] $f: missing stock or tabbydb results")
+    }
+  }
+  println(s"[report] CSVs written to $out")
+  println("BENCH_STEP_OK")
+  System.exit(0)
+} catch {
+  case e: Throwable => e.printStackTrace(); System.exit(1)
+}

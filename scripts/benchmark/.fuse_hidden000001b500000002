@@ -1,0 +1,53 @@
+// 02-hive-tables.scala — create Hive EXTERNAL tables over the generated Parquet (no data copy).
+//
+// Run WITHOUT the Iceberg confs, with Hive support and the shared metastore (run-all.sh does this).
+//
+// Params (--conf spark.bench.<name>=...):
+//   dataDir              same as 01-gendata
+//   scaleFactor          same as 01-gendata
+//   useDoubleForDecimal  same as 01-gendata (default true)
+//   hiveDb               default tpcds_hive
+//   analyze              default true — ANALYZE TABLE ... COMPUTE STATISTICS (table-level, as in your gendata.scala)
+
+import com.databricks.spark.sql.perf.tpcds.TPCDSTables
+
+def p(k: String, d: String = null): String =
+  spark.conf.getOption(s"spark.bench.$k")
+    .orElse(spark.sparkContext.getConf.getOption(s"spark.bench.$k"))
+    .orElse(Option(d))
+    .getOrElse(throw new IllegalArgumentException(s"Missing --conf spark.bench.$k"))
+
+try {
+  val dataDir   = p("dataDir").stripSuffix("/")
+  val scale     = p("scaleFactor")
+  val useDouble = p("useDoubleForDecimal", "true").toBoolean
+  val db        = p("hiveDb", "tpcds_hive")
+  val analyze   = p("analyze", "true").toBoolean
+
+  val catImpl = spark.sparkContext.getConf.get("spark.sql.catalogImplementation", "in-memory")
+  require(catImpl == "hive",
+    s"Hive support is not enabled (spark.sql.catalogImplementation=$catImpl). " +
+    "Use a Spark build with -Phive and pass --conf spark.sql.catalogImplementation=hive")
+
+  val tables = new TPCDSTables(spark.sqlContext, dsdgenDir = "", scaleFactor = scale,
+    useDoubleForDecimal = useDouble, useStringForDate = false)
+
+  tables.createExternalTables(dataDir, "parquet", db, overwrite = true, discoverPartitions = false)
+  if (analyze) tables.analyzeTables(db, analyzeColumns = false)
+
+  // Validate against the counts written by 01-gendata.
+  val expected = spark.read.json(s"$dataDir/_rowcounts").collect()
+    .map(r => r.getAs[String]("table") -> r.getAs[Long]("rows")).toMap
+  var bad = 0
+  expected.toSeq.sortBy(_._1).foreach { case (t, n) =>
+    val got = spark.table(s"$db.$t").count()
+    val ok = got == n
+    if (!ok) bad += 1
+    println(f"[hive] $t%-24s expected $n%,15d  got $got%,15d  ${if (ok) "OK" else "MISMATCH"}")
+  }
+  if (bad > 0) throw new IllegalStateException(s"$bad table(s) have mismatched row counts")
+  println(s"[hive] OK — ${expected.size} external tables in $db")
+  System.exit(0)
+} catch {
+  case e: Throwable => e.printStackTrace(); System.exit(1)
+}
