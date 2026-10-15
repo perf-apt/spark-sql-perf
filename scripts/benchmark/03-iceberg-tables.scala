@@ -21,6 +21,14 @@ def p(k: String, d: String = null): String =
     .orElse(Option(d))
     .getOrElse(throw new IllegalArgumentException(s"Missing --conf spark.bench.$k"))
 
+// add_files with source `parquet`.`<path>` makes Iceberg first try "parquet" as a catalog name; it logs
+// a CATALOG_NOT_FOUND warning + stack trace per table and then (correctly) treats it as a path.
+// Mute only that logger's warnings for this step.
+try {
+  org.apache.logging.log4j.core.config.Configurator.setLevel(
+    "org.apache.iceberg.spark.Spark3Util", org.apache.logging.log4j.Level.ERROR)
+} catch { case _: Throwable => }
+
 try {
   val dataDir = p("dataDir").stripSuffix("/")
   val scale   = p("scaleFactor")
