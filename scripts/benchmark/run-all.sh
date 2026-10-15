@@ -138,6 +138,7 @@ step_bench() {
         --conf "spark.bench.engine=${engine}" --conf "spark.bench.format=${format}" \
         --conf "spark.bench.db=${db}" --conf "spark.bench.iter=${it}" \
         --conf "spark.bench.queryTimeoutSec=${QUERY_TIMEOUT_SEC}" \
+        --conf "spark.bench.minExecutors=${MIN_EXECUTORS:-0}" \
         --conf "spark.bench.queries=${QUERIES:-}"
     done
   done

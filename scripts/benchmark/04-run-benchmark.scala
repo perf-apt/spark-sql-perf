@@ -41,6 +41,22 @@ try {
   val tags = Map("runId" -> runId, "engine" -> engine, "format" -> format,
     "iter" -> iter, "scale" -> scale)
 
+  // Make sure the cluster gave us the executors we expect before timing anything,
+  // so both engines are measured on the same resources. (Standalone/cluster masters only.)
+  val minExec = p("minExecutors", "0").toInt
+  val sc = spark.sparkContext
+  def numExecutors = sc.getExecutorMemoryStatus.size - 1   // entry for the driver excluded
+  if (!sc.master.startsWith("local") && minExec > 0) {
+    val deadline = System.currentTimeMillis + 120000
+    while (numExecutors < minExec && System.currentTimeMillis < deadline) Thread.sleep(2000)
+    require(numExecutors >= minExec,
+      s"Only $numExecutors executor(s) registered, expected at least $minExec — check worker cores/memory vs executor cores/memory")
+  }
+  println(s"[bench] master=${sc.master} executors=$numExecutors " +
+    s"executor.cores=${sc.getConf.get("spark.executor.cores", "default")} " +
+    s"executor.memory=${sc.getConf.get("spark.executor.memory", "default")} " +
+    s"driver.memory=${sc.getConf.get("spark.driver.memory", "default")}")
+
   spark.sql(s"USE $db")
   val tpcds = new TPCDS(spark.sqlContext)
 
