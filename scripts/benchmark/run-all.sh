@@ -25,6 +25,7 @@ mkdir -p "$LOG_DIR" "$METASTORE_DIR"
 COMMON_SPARK_ENV="${COMMON_SPARK_ENV:-}"
 COMMON_SPARK_PROPS="${COMMON_SPARK_PROPS:-}"
 COMMON_SPARK_CONF_DIR="${COMMON_SPARK_CONF_DIR:-}"
+WORKERS="${WORKERS:-}"
 MANAGE_CLUSTER="${MANAGE_CLUSTER:-true}"
 MASTER_WEBUI="${MASTER_WEBUI:-http://localhost:8080}"
 
@@ -59,6 +60,8 @@ gen_conf() {
     echo
   } > "$dst/spark-env.sh"
   chmod +x "$dst/spark-env.sh"
+  # Worker hosts: WORKERS from bench.env (same for both engines) wins over $src/workers.
+  if [[ -n "$WORKERS" ]]; then printf '%s\n' $WORKERS > "$dst/workers"; fi
   echo "$dst"
 }
 
