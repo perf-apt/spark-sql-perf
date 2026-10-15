@@ -53,7 +53,7 @@ try {
     val t0 = System.nanoTime
     // add_files also sets a name mapping, needed because Spark-written Parquet has no Iceberg field IDs.
     val r = spark.sql(
-      s"CALL $cat.system.add_files(table => '$db.$t', source_table => '`parquet`.`$src`')").collect()
+      s"CALL $cat.system.add_files(table => '$cat.$db.$t', source_table => '`parquet`.`$src`')").collect()
     println(f"[iceberg] $t%-24s add_files -> ${r.mkString(",")}  (${(System.nanoTime - t0) / 1e9}%.0f s)")
   }
 
