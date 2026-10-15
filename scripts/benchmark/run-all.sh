@@ -60,7 +60,7 @@ shell() {
   # shellcheck disable=SC2086
   "$home/bin/spark-shell" --master "$MASTER" --jars "$jars" \
     $COMMON_CONF $EXTRA_SPARK_CONF \
-    "${HIVE_CONF[@]}" "${fmt_conf[@]}" "${COMMON_BENCH_CONF[@]}" "$@" \
+    "${HIVE_CONF[@]}" ${fmt_conf[@]+"${fmt_conf[@]}"} "${COMMON_BENCH_CONF[@]}" ${@+"$@"} \
     -i "$script" < /dev/null 2>&1 | tee "$LOG_DIR/$log.log"
   # spark-shell exit status is lost in the pipe; scripts print BENCH_STEP_OK only on success.
   grep -q "BENCH_STEP_OK" "$LOG_DIR/$log.log" || { echo "!!! $log failed — see $LOG_DIR/$log.log"; exit 1; }
