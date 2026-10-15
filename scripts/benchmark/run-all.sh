@@ -21,6 +21,44 @@ STEP="${1:-}"
 source "$ENV_FILE"
 mkdir -p "$LOG_DIR" "$METASTORE_DIR"
 
+# Optional settings (older bench.env files may not have them).
+COMMON_SPARK_CONF_DIR="${COMMON_SPARK_CONF_DIR:-}"
+MANAGE_CLUSTER="${MANAGE_CLUSTER:-true}"
+MASTER_WEBUI="${MASTER_WEBUI:-http://localhost:8080}"
+
+# Conf folder (spark-env.sh, spark-defaults.conf, workers) for a given SPARK_HOME.
+conf_dir_for() { if [[ -n "$COMMON_SPARK_CONF_DIR" ]]; then echo "$COMMON_SPARK_CONF_DIR"; else echo "$1/conf"; fi; }
+
+# ── Standalone cluster management ────────────────────────────────────────────
+# In standalone mode executors run from the installation that STARTED THE WORKERS, not from the
+# driver's SPARK_HOME. So before an engine's runs, the master + workers are restarted from that
+# engine's SPARK_HOME (with the same conf folder). Skipped for local[*] or MANAGE_CLUSTER=false.
+CLUSTER_ENGINE=""   # engine the cluster was last started with by this script
+ensure_cluster() {
+  local engine="$1" home="$2"
+  [[ "$MASTER" == spark://* && "$MANAGE_CLUSTER" == "true" ]] || return 0
+  [[ "$CLUSTER_ENGINE" == "$engine" ]] && return 0
+  local conf; conf="$(conf_dir_for "$home")"
+  local expected=1
+  [[ -f "$conf/workers" ]] && expected=$(grep -cvE '^\s*(#|$)' "$conf/workers" || true)
+  echo ">>> (re)starting standalone cluster from $home  conf=$conf  workers=$expected"
+  SPARK_HOME="$home" SPARK_CONF_DIR="$conf" "$home/sbin/stop-all.sh"  >/dev/null 2>&1 || true
+  sleep 3
+  SPARK_HOME="$home" SPARK_CONF_DIR="$conf" "$home/sbin/start-all.sh" >"$LOG_DIR/cluster-start-$engine.log" 2>&1
+  local i alive=0
+  for ((i = 0; i < 60; i++)); do
+    alive=$(curl -s "$MASTER_WEBUI/json/" | grep -oE '"aliveworkers" *: *[0-9]+' | grep -oE '[0-9]+$' || echo 0)
+    [[ "${alive:-0}" -ge "$expected" ]] && break
+    sleep 2
+  done
+  if [[ "${alive:-0}" -lt "$expected" ]]; then
+    echo "!!! only ${alive:-0}/$expected workers registered at $MASTER_WEBUI — see $LOG_DIR/cluster-start-$engine.log and $home/logs"
+    exit 1
+  fi
+  echo ">>> cluster up: $alive worker(s), running $engine"
+  CLUSTER_ENGINE="$engine"
+}
+
 join_jars() { local IFS=,; echo "$*" | sed 's/,,*/,/g; s/^,//; s/,$//'; }
 
 # Hive metastore shared by both distributions (embedded Derby => run one JVM at a time).
@@ -58,12 +96,13 @@ shell() {
   fi
   jars="$(join_jars "$jars" "${EXTRA_JARS:-}")"
   echo ">>> [$engine/$format] $(basename "$script")  SPARK_HOME=$home  log: $LOG_DIR/$log.log"
-  # Pin SPARK_HOME and SPARK_CONF_DIR to the distribution being run. Otherwise a SPARK_HOME /
-  # SPARK_CONF_DIR exported in your shell profile would silently take over (wrong engine or conf).
-  # Each distribution's own conf/spark-env.sh and conf/spark-defaults.conf ARE loaded; anything
-  # passed below on the command line (from bench.env) overrides spark-defaults.conf.
+  ensure_cluster "$engine" "$home"
+  # Pin SPARK_HOME and SPARK_CONF_DIR. Otherwise a SPARK_HOME / SPARK_CONF_DIR exported in your
+  # shell profile would silently take over (wrong engine or conf). The conf folder is
+  # COMMON_SPARK_CONF_DIR if set (same spark-env.sh + spark-defaults.conf for both engines),
+  # else the distribution's own conf/. Command-line values from bench.env override spark-defaults.conf.
   # shellcheck disable=SC2086
-  SPARK_HOME="$home" SPARK_CONF_DIR="$home/conf" \
+  SPARK_HOME="$home" SPARK_CONF_DIR="$(conf_dir_for "$home")" \
   "$home/bin/spark-shell" --master "$MASTER" --jars "$jars" \
     $COMMON_CONF $EXTRA_SPARK_CONF \
     "${HIVE_CONF[@]}" ${fmt_conf[@]+"${fmt_conf[@]}"} "${COMMON_BENCH_CONF[@]}" ${@+"$@"} \
@@ -112,6 +151,10 @@ step_report() {
 # engine runs with and the other doesn't — decide whether it belongs in bench.env (shared) instead.
 step_confdiff() {
   local f
+  if [[ -n "$COMMON_SPARK_CONF_DIR" ]]; then
+    echo "COMMON_SPARK_CONF_DIR=$COMMON_SPARK_CONF_DIR is used by BOTH engines; the distributions' own conf/ folders are not used."
+    return 0
+  fi
   for f in spark-defaults.conf spark-env.sh hive-site.xml; do
     echo "===== conf/$f   (< stock   > tabbydb)"
     diff <(grep -vE '^\s*(#|$)' "$STOCK_SPARK_HOME/conf/$f" 2>/dev/null | sort) \
