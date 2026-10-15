@@ -36,6 +36,7 @@ try {
   val scale      = p("scaleFactor", "")
   val timeoutSec = p("queryTimeoutSec", "7200").toInt
   val only       = p("queries", "").split(",").map(_.trim).filter(_.nonEmpty).toSet
+  val excluded   = p("excludeQueries", "").split(",").map(_.trim).filter(_.nonEmpty).toSet
 
   val rawDir = s"$resultDir/raw"
   val tags = Map("runId" -> runId, "engine" -> engine, "format" -> format,
@@ -72,6 +73,7 @@ try {
 
   val todo = tpcds.tpcds2_4Queries
     .filter(q => only.isEmpty || only.contains(q.name))
+    .filterNot(q => excluded.contains(q.name))
     .filterNot(q => done.contains(q.name))
 
   println(s"[bench] $engine/$format iter=$iter db=$db: ${done.size} already done, ${todo.size} to run")

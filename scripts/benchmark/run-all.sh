@@ -6,7 +6,9 @@
 #   tables    Hive external tables + Iceberg add_files registration  (02 + 03)
 #   bench     ITERATIONS x 4 combinations, alternating order, resumable (04)
 #   report    medians per query, compile vs execution, CSV           (05)
-#   all       gendata -> tables -> bench -> report
+#   validate  capture each query's result per combination (untimed, after bench) + compare (06, 07)
+#   compare   re-run only the comparison of captured results          (07)
+#   all       gendata -> tables -> bench -> validate -> report
 #   confdiff  show differences between the two distributions' conf/ folders
 #
 # Every step is safe to re-run: finished tables / finished queries are skipped.
@@ -143,6 +145,7 @@ COMMON_BENCH_CONF=(
   --conf "spark.bench.useDoubleForDecimal=${USE_DOUBLE_FOR_DECIMAL}"
   --conf "spark.bench.resultDir=${RESULT_DIR}"
   --conf "spark.bench.runId=${RUN_ID}"
+  --conf "spark.bench.excludeQueries=${EXCLUDE_QUERIES:-}"
 )
 
 # shell <engine stock|tabbydb> <format hive|iceberg|none> <script> <log name> [extra --conf ...]
@@ -206,6 +209,24 @@ step_bench() {
   done
 }
 
+# Correctness: runs every query once per combination in separate spark-shells, AFTER the timed
+# runs, and captures the results. Does not touch the timed numbers. Resumable per query.
+step_validate() {
+  local c engine format db
+  for c in "stock hive" "tabbydb hive" "stock iceberg" "tabbydb iceberg"; do
+    read -r engine format <<<"$c"
+    db="$HIVE_DB"; [[ "$format" == "iceberg" ]] && db="spark_catalog.${ICEBERG_DB}"
+    shell "$engine" "$format" "$HERE/06-validate.scala" "06-${RUN_ID}-${engine}-${format}" \
+      --conf "spark.bench.engine=${engine}" --conf "spark.bench.format=${format}" \
+      --conf "spark.bench.db=${db}" --conf "spark.bench.queries=${QUERIES:-}"
+  done
+  step_compare
+}
+
+step_compare() {
+  shell stock none "$HERE/07-compare-results.scala" "07-compare-${RUN_ID}"
+}
+
 step_report() {
   shell stock none "$HERE/05-report.scala" "05-report-${RUN_ID}"
 }
@@ -229,7 +250,9 @@ case "$STEP" in
   tables)  step_tables ;;
   bench)   step_bench ;;
   report)  step_report ;;
-  all)     step_gendata; step_tables; step_bench; step_report ;;
-  *) sed -n '2,13p' "$0"; exit 1 ;;
+  validate) step_validate ;;
+  compare) step_compare ;;
+  all)     step_gendata; step_tables; step_bench; step_validate; step_report ;;
+  *) sed -n '2,15p' "$0"; exit 1 ;;
 esac
 echo ">>> step '$STEP' finished"

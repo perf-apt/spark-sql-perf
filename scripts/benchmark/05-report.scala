@@ -16,8 +16,10 @@ try {
   val resultDir = p("resultDir").stripSuffix("/")
   val runId     = p("runId")
   val out       = s"$resultDir/report/$runId"
+  val excluded  = p("excludeQueries", "").split(",").map(_.trim).filter(_.nonEmpty).toSet
 
   val raw = spark.read.json(s"$resultDir/raw").where($"tags.runId" === runId)
+  if (excluded.nonEmpty) println(s"[report] excluded by EXCLUDE_QUERIES: ${excluded.toSeq.sorted.mkString(", ")}")
   val r = raw.select($"tags.engine".as("engine"), $"tags.format".as("format"),
                      $"tags.iter".as("iter"), explode($"results").as("r"))
   val hasFailure = r.select("r.*").columns.contains("failure")
@@ -36,9 +38,24 @@ try {
       bround(expr("percentile(exec_s, 0.5)"), 2).as("exec_s"),
       bround(expr("percentile(total_s, 0.5)"), 2).as("total_s"),
       sum($"failed".cast("int")).as("failures"))
+    .where(!$"query".isin(excluded.toSeq: _*))
     .orderBy("format", "query", "engine")
 
-  val summary = perQuery.groupBy("engine", "format").agg(
+  // Totals use only queries that ran successfully in EVERY combination, so all four totals
+  // cover exactly the same work. Anything else is listed separately.
+  val nCombos = perQuery.select("engine", "format").distinct().count()
+  val okQueries = perQuery.groupBy("query")
+    .agg(count(lit(1)).as("n"), sum("failures").as("f"))
+    .where($"n" === nCombos && $"f" === 0).select("query")
+  val leftOut = perQuery.join(okQueries, Seq("query"), "left_anti")
+  if (!leftOut.isEmpty) {
+    println("[report] NOT in totals (failed or missing in at least one combination):")
+    leftOut.groupBy("query").agg(concat_ws("  ", sort_array(collect_list(
+        concat($"engine", lit("-"), $"format", lit(" failures="), $"failures".cast("string"), lit("/"), $"iters".cast("string"))))).as("detail"))
+      .orderBy("query").show(200, false)
+  }
+
+  val summary = perQuery.join(okQueries, Seq("query")).groupBy("engine", "format").agg(
       count(lit(1)).as("queries"),
       sum("failures").as("failures"),
       bround(sum("compile_s"), 1).as("compile_s"),
