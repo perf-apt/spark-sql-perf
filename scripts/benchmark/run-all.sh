@@ -5,11 +5,11 @@
 #   gendata   generate unpartitioned, date-sorted Parquet           (01-gendata.scala)
 #   tables    Hive external tables + Iceberg add_files registration  (02 + 03)
 #   bench     ITERATIONS x 4 combinations, alternating order, resumable (04)
-#   report    medians per query, compile vs execution, CSV           (05)
+#   report    summary (medians) + per-format side-by-side stock vs TabbyDB (averages), CSV (05)
 #   validate  compare the results saved by the timed runs, all combinations + iterations (07)
 #   recapture optional extra pass re-running every query to save results, then compare (06 + 07)
 #             (only for campaigns run before result capture existed)
-#   all       gendata -> tables -> bench -> report -> validate
+#   all       gendata -> tables -> bench -> validate -> report
 #   confdiff  show differences between the two distributions' conf/ folders
 #
 # Every step is safe to re-run: finished tables / finished queries are skipped.
@@ -254,7 +254,7 @@ case "$STEP" in
   report)  step_report ;;
   validate)  step_validate ;;
   recapture) step_recapture ;;
-  all)     step_gendata; step_tables; step_bench; step_report; step_validate ;;
+  all)     step_gendata; step_tables; step_bench; step_validate; step_report ;;
   *) sed -n '2,16p' "$0"; exit 1 ;;
 esac
 echo ">>> step '$STEP' finished"

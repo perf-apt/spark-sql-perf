@@ -1,7 +1,12 @@
-// 05-report.scala — summarise a campaign: median per query per (engine, format), compile vs execution.
+// 05-report.scala — summarise a campaign.
 //
-// Params: resultDir, runId
-// Writes CSVs to <resultDir>/report/<runId>/{per_query,summary}
+//  * summary            median per query per (engine, format), compile vs execution, totals
+//  * side-by-side       one table per format (hive, iceberg): per query stock vs TabbyDB AVERAGE time
+//                       across iterations, % improvement, speed-up, result row counts, result check.
+//                       Written as plain CSV and printed tab-separated (paste straight into Excel).
+//
+// Params: resultDir, runId, excludeQueries
+// Writes to <resultDir>/report/<runId>/: per_query/, summary/, hive_side_by_side.csv, iceberg_side_by_side.csv
 
 import org.apache.spark.sql.functions._
 
@@ -28,7 +33,8 @@ try {
     $"engine", $"format", $"iter", $"r.name".as("query"),
     (expr("coalesce(r.parsingTime,0)+coalesce(r.analysisTime,0)+coalesce(r.optimizationTime,0)+coalesce(r.planningTime,0)") / 1000).as("compile_s"),
     (coalesce($"r.executionTime", lit(0.0)) / 1000).as("exec_s"),
-    (if (hasFailure) $"r.failure".isNotNull else lit(false)).as("failed"))
+    (if (hasFailure) $"r.failure".isNotNull else lit(false)).as("failed"),
+    $"r.numRows".cast("long").as("numRows"))
     .withColumn("total_s", $"compile_s" + $"exec_s")
 
   // Median across iterations (exact percentile; only 2-3 values per query).
@@ -76,6 +82,90 @@ try {
       case _ => println(s"[report] $f: missing stock or tabbydb results")
     }
   }
+  // ── Side-by-side per format (Excel / charts): AVERAGE across iterations ───────────────────
+  val okSet = okQueries.as[String].collect().toSet
+  // (avg total seconds, iterations, failures, distinct result row counts)
+  val stats: Map[(String, String, String), (Double, Long, Long, Seq[Long])] =
+    rows.where(!$"query".isin(excluded.toSeq: _*))
+      .groupBy("engine", "format", "query")
+      .agg(avg("total_s").as("avg_s"), count(lit(1)).as("iters"),
+           sum($"failed".cast("int")).cast("long").as("failures"),
+           sort_array(collect_set($"numRows")).as("nrows"))
+      .collect()
+      .map(x => (x.getString(0), x.getString(1), x.getString(2)) ->
+        (x.getDouble(3), x.getLong(4), x.getLong(5), x.getSeq[Long](6)))
+      .toMap
+
+  // Full-result check from 07-compare-results (if it has been run): TabbyDB vs the reference.
+  def parseCsvLine(l: String): Seq[String] =
+    l.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1).toSeq
+      .map(c => c.trim.stripPrefix("\"").stripSuffix("\"").replace("\"\"", "\""))
+  val hconf = spark.sparkContext.hadoopConfiguration
+  val cmpPath = new org.apache.hadoop.fs.Path(s"$resultDir/validate/$runId/_comparison.csv")
+  val cmpFs = cmpPath.getFileSystem(hconf)
+  val cmp: Option[(Seq[String], Seq[Seq[String]])] =
+    if (cmpFs.exists(cmpPath)) {
+      val in = cmpFs.open(cmpPath)
+      val txt = try new String(in.readAllBytes(), "UTF-8") finally in.close()
+      val ls = txt.split("\n").toSeq.filter(_.trim.nonEmpty).map(parseCsvLine)
+      Some((ls.head, ls.tail))
+    } else None
+  def resultCheck(fmt: String, q: String): String = cmp match {
+    case None => "n/a (run validate)"
+    case Some((hdr, body)) =>
+      val idx = hdr.zipWithIndex.collect { case (h, i) if h.startsWith(s"tabbydb-$fmt") => i }
+      body.find(_.head == q) match {
+        case Some(row) if idx.nonEmpty =>
+          val st = idx.map(i => if (i < row.length) row(i) else "MISSING")
+          st.find(!_.startsWith("MATCH")).getOrElse(if (st.forall(_ == "MATCH")) "MATCH" else "MATCH(unordered)")
+        case _ => "n/a"
+      }
+  }
+
+  def qLabel(q: String) = q.stripSuffix("-v2.4")
+  def qKey(q: String) = (q.drop(1).takeWhile(_.isDigit).toIntOption.getOrElse(999), q)
+  def n2(d: Double) = f"$d%.2f"
+  def csvCell(c: String) = if (c.exists(ch => ch == ',' || ch == '"')) "\"" + c.replace("\"", "\"\"") + "\"" else c
+  val outFs = new org.apache.hadoop.fs.Path(out).getFileSystem(hconf)
+
+  Seq("hive", "iceberg").foreach { fmt =>
+    val qs = stats.keys.filter(_._2 == fmt).map(_._3).toSeq.distinct.sortBy(qKey)
+    if (qs.nonEmpty) {
+      val header = Seq("query", "stock_avg_s", "tabbydb_avg_s", "improvement_pct", "speedup_x",
+        "stock_rows", "tabbydb_rows", "rows_match", "result_check", "iterations", "notes")
+      var totS = 0.0; var totT = 0.0; var nTot = 0
+      val lines = qs.map { q =>
+        val st = stats.get(("stock", fmt, q)); val tb = stats.get(("tabbydb", fmt, q))
+        val ok = st.exists(_._3 == 0) && tb.exists(_._3 == 0)
+        val notes = Seq(
+          st.filter(_._3 > 0).map(x => s"stock failed ${x._3}/${x._2}"),
+          tb.filter(_._3 > 0).map(x => s"tabbydb failed ${x._3}/${x._2}"),
+          if (st.isEmpty) Some("no stock result") else None,
+          if (tb.isEmpty) Some("no tabbydb result") else None,
+          if (ok && !okSet.contains(q)) Some("not in totals") else None).flatten.mkString("; ")
+        if (ok && okSet.contains(q)) { totS += st.get._1; totT += tb.get._1; nTot += 1 }
+        val imp = if (ok && st.get._1 > 0) n2((st.get._1 - tb.get._1) / st.get._1 * 100) else ""
+        val spd = if (ok && tb.get._1 > 0) n2(st.get._1 / tb.get._1) else ""
+        val rowsMatch = (st, tb) match { case (Some(a), Some(b)) => if (a._4 == b._4) "Y" else "N"; case _ => "" }
+        Seq(qLabel(q), st.map(x => n2(x._1)).getOrElse(""), tb.map(x => n2(x._1)).getOrElse(""), imp, spd,
+          st.map(_._4.mkString("|")).getOrElse(""), tb.map(_._4.mkString("|")).getOrElse(""),
+          rowsMatch, resultCheck(fmt, q), st.orElse(tb).map(_._2.toString).getOrElse(""), notes)
+      }
+      val total = Seq(s"TOTAL ($nTot queries)", n2(totS), n2(totT),
+        if (totS > 0) n2((totS - totT) / totS * 100) else "", if (totT > 0) n2(totS / totT) else "",
+        "", "", "", "", "", "same query set as the summary")
+      val table = header +: (lines :+ total)
+
+      val f = new org.apache.hadoop.fs.Path(s"$out/${fmt}_side_by_side.csv")
+      val o = outFs.create(f, true)
+      try o.write(table.map(_.map(csvCell).mkString(",")).mkString("", "\n", "\n").getBytes("UTF-8")) finally o.close()
+
+      println(s"\n[report] ===== $fmt: stock vs TabbyDB, average of iterations (tab-separated, paste into Excel) =====")
+      table.foreach(r => println(r.mkString("\t")))
+      println(s"[report] ===== end $fmt — also saved as $f =====")
+    }
+  }
+
   println(s"[report] CSVs written to $out")
   println("BENCH_STEP_OK")
   System.exit(0)
