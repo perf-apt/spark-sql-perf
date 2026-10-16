@@ -15,8 +15,8 @@ cp bench.env.example bench.env   # edit paths, SCALE, resources
 ./run-all.sh gendata             # 01: generate data (skips tables that already have _SUCCESS)
 ./run-all.sh tables              # 02 + 03: Hive external + Iceberg add_files, both validated against row counts
 ./run-all.sh bench               # 04: ITERATIONS x 4 combinations, alternating order, resumable
-./run-all.sh report              # 05: medians per query, compile vs execution, CSV
 ./run-all.sh validate            # 07: correctness — compare results saved by the timed runs
+./run-all.sh report              # 05: summary + hive/iceberg side-by-side CSVs (averages, % improvement, result check)
 # or: ./run-all.sh all
 ```
 
