@@ -16,6 +16,7 @@ cp bench.env.example bench.env   # edit paths, SCALE, resources
 ./run-all.sh tables              # 02 + 03: Hive external + Iceberg add_files, both validated against row counts
 ./run-all.sh bench               # 04: ITERATIONS x 4 combinations, alternating order, resumable
 ./run-all.sh report              # 05: medians per query, compile vs execution, CSV
+./run-all.sh validate            # 07: correctness — compare results saved by the timed runs
 # or: ./run-all.sh all
 ```
 
@@ -25,6 +26,17 @@ Re-run the same step with the same `RUN_ID`.
 
 - **gendata** skips tables that are already complete.
 - **bench** skips queries already recorded for that `(runId, engine, format, iter)`. Each query's result is written as soon as it finishes.
+
+## Correctness check (no extra query runs)
+
+The TPC-DS queries run in "collect" mode, so every timed run already pulls its full result into the
+driver. The patched `Query.scala` in this branch saves those rows **after the timer stops**, to
+`results/validate/<RUN_ID>/<engine>-<format>/iter<N>/<query>.tsv`. `validate` compares every
+combination and iteration with stock-hive iter1 (doubles within a relative tolerance of 1e-6) and
+writes `_comparison.csv`. Rebuild the jar after pulling this change (`sbt clean package`).
+
+`recapture` re-runs every query once per combination to save results. It's only for campaigns run
+before result capture existed.
 
 ## Rules
 

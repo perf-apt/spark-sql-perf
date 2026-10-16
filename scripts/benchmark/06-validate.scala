@@ -1,8 +1,9 @@
-// 06-validate.scala — capture each query's RESULT for one (engine, format), for correctness checking.
+// 06-validate.scala — OPTIONAL extra pass: re-run each query once for one (engine, format) and save its result.
 //
-// Runs separately from the timed benchmark (its own spark-shell, after 04), so it has no effect
-// on the performance numbers. Each query runs once; its rows are written to
-//   <resultDir>/validate/<runId>/<engine>-<format>/<query>.tsv
+// Normally not needed: 04-run-benchmark already saves the result rows of every timed run
+// (spark-sql-perf Query.scala, after timing). Use this only for campaigns run before that existed
+// (./run-all.sh recapture). Rows are written to
+//   <resultDir>/validate/<runId>/<engine>-<format>/recapture/<query>.tsv
 // Resumable: queries that already have a .tsv are skipped.
 //
 // Encoding per cell:  N = null,  D:<double> = float/double (compared with tolerance),  S:<text> = exact
@@ -39,7 +40,7 @@ try {
   spark.sql(s"USE $db")
   val tpcds = new TPCDS(spark.sqlContext)
 
-  val outDir = s"$resultDir/validate/$runId/$engine-$format"
+  val outDir = s"$resultDir/validate/$runId/$engine-$format/recapture"
   val fs = new Path(outDir).getFileSystem(spark.sparkContext.hadoopConfiguration)
   fs.mkdirs(new Path(outDir))
 

@@ -15,6 +15,7 @@
 //   scaleFactor   recorded as a tag only
 //   queryTimeoutSec  per-query timeout (default 7200)
 //   queries       optional comma-separated query names for debugging, e.g. q1-v2.4,q72-v2.4
+//   captureResults default true — save each query's result rows (after timing) for 07-compare-results
 
 import com.databricks.spark.sql.perf.tpcds.TPCDS
 import org.apache.hadoop.fs.Path
@@ -77,6 +78,14 @@ try {
     .filterNot(q => done.contains(q.name))
 
   println(s"[bench] $engine/$format iter=$iter db=$db: ${done.size} already done, ${todo.size} to run")
+
+  // Correctness: the timed run already collects each query's rows; spark-sql-perf (Query.scala)
+  // saves them AFTER timing to this folder when the conf is set. Compared later by 07.
+  val capture = p("captureResults", "true").toBoolean
+  val captureDir = s"$resultDir/validate/$runId/$engine-$format/iter$iter"
+  if (capture) spark.conf.set("spark.sql.perf.captureResultsDir", captureDir)
+  else spark.conf.unset("spark.sql.perf.captureResultsDir")
+  println(s"[bench] result capture: ${if (capture) captureDir else "off"}")
 
   todo.zipWithIndex.foreach { case (q, i) =>
     val t0 = System.nanoTime

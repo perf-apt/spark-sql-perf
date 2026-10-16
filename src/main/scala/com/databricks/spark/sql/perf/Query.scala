@@ -19,7 +19,7 @@ package com.databricks.spark.sql.perf
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.execution.SparkPlan
 
@@ -119,11 +119,13 @@ class Query(
       // lazily evaluated above, so below we will count only execution time.
       var result: Option[Long] = None
       var numRowsOutput = 0
+      var collectedRows: Array[Row] = null
       val executionTime = measureTimeMs {
         executionMode match {
           case ExecutionMode.CollectResults =>
                val x = dataFrame.collect()
                numRowsOutput = x.length
+               collectedRows = x
 
           case ExecutionMode.ForeachResults =>
             numRowsOutput = dataFrame.collect().length
@@ -140,6 +142,12 @@ class Query(
                 .head()
             result = if (row.isNullAt(0)) None else Some(row.getLong(0))
         }
+      }
+
+      // Outside the timed block above: save the rows this run already collected, for the
+      // correctness check (only if spark.sql.perf.captureResultsDir is set). Never fails the query.
+      if (collectedRows != null) {
+        QueryResultCapture.save(dataFrame.sparkSession, name, Right(collectedRows))
       }
 
       val joinTypes = dataFrame.queryExecution.executedPlan.collect {
@@ -165,6 +173,9 @@ class Query(
         val sw: StringWriter = new StringWriter();
         val pw: PrintWriter = new PrintWriter(sw);
         e.printStackTrace(pw);
+        SparkSession.getActiveSession.orElse(SparkSession.getDefaultSession).foreach { ss =>
+          QueryResultCapture.save(ss, name, Left(s"${e.getClass.getName}: ${e.getMessage}"))
+        }
          BenchmarkResult(
            name = name,
            mode = executionMode.toString,
@@ -175,5 +186,51 @@ class Query(
   /** Change the ExecutionMode of this Query to HashResults, which is used to check the query result. */
   def checkResult: Query = {
     new Query(name, buildDataFrame, description, sqlText, ExecutionMode.HashResults)
+  }
+}
+
+/**
+ * Saves a query's result rows (or its error) as <captureResultsDir>/<query>.tsv, so results of the
+ * timed runs can be compared across engines afterwards. Enabled by setting the SQL conf
+ * spark.sql.perf.captureResultsDir; a no-op otherwise. Called after timing has finished.
+ *
+ * Format: first line "#rows=N" (or "#error=..."), then one line per row, cells tab-separated:
+ *   N = null, D:<double> = float/double (compared with tolerance), S:<text> = compared exactly.
+ */
+object QueryResultCapture {
+  val ConfKey = "spark.sql.perf.captureResultsDir"
+
+  private def enc(v: Any): String = v match {
+    case null => "N"
+    case d: Double if d.isNaN || d.isInfinite => "S:" + d.toString
+    case d: Double => "D:" + java.lang.Double.toString(d)
+    case f: Float => "D:" + java.lang.Double.toString(f.toDouble)
+    case b: java.math.BigDecimal => "S:" + b.stripTrailingZeros.toPlainString
+    case x => "S:" + x.toString.replace('\t', ' ').replace('\n', ' ')
+  }
+
+  def save(spark: SparkSession, queryName: String, rows: Either[String, Array[Row]]): Unit = {
+    try {
+      val dir = spark.conf.getOption(ConfKey).map(_.trim).filter(_.nonEmpty)
+      dir.foreach { d =>
+        val content = rows match {
+          case Right(rs) =>
+            (s"#rows=${rs.length}" +: rs.toSeq.map(_.toSeq.map(enc).mkString("\t"))).mkString("\n")
+          case Left(err) =>
+            "#error=" + String.valueOf(err).take(500).replace('\n', ' ')
+        }
+        val target = new org.apache.hadoop.fs.Path(s"${d.stripSuffix("/")}/$queryName.tsv")
+        val fs = target.getFileSystem(spark.sparkContext.hadoopConfiguration)
+        fs.mkdirs(target.getParent)
+        val tmp = new org.apache.hadoop.fs.Path(target.toString + ".tmp")
+        val out = fs.create(tmp, true)
+        try out.write(content.getBytes("UTF-8")) finally out.close()
+        fs.delete(target, false)
+        fs.rename(tmp, target)
+      }
+    } catch {
+      case e: Throwable =>
+        System.err.println(s"[QueryResultCapture] could not save result of $queryName: $e")
+    }
   }
 }

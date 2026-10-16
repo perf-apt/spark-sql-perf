@@ -7,6 +7,9 @@
 //     (stock-hive). Floating-point cells may differ in the last digits (different aggregation
 //     order), so they match if within a relative tolerance (default 1e-6).
 //
+// Every saved variant (each engine/format and each iteration) is compared with stock-hive iter1,
+// so results that change between iterations are caught too.
+//
 // Status per query:
 //   MATCH             identical in output order (doubles within tolerance)
 //   MATCH(unordered)  same rows, different order (only ties in ORDER BY can cause this)
@@ -50,14 +53,26 @@ try {
     if (nBad > 0) bad.select($"query", concat_ws("  ", sort_array($"by_combo")).as("rows by combo")).show(200, false)
   } else println(s"[compare] no timed results at $rawDir — skipping row-count check")
 
-  // ── 2. Full results from 06-validate ───────────────────────────────────────
+  // ── 2. Full results saved by the timed runs (or by 06 recapture) ──────────
   val base = new Path(s"$resultDir/validate/$runId")
   val fs = base.getFileSystem(hconf)
   require(fs.exists(base), s"No validation results at $base — run './run-all.sh validate' first")
-  val combos = fs.listStatus(base).filter(_.isDirectory).map(_.getPath.getName).sorted.toSeq
-  val ref = "stock-hive"
-  require(combos.contains(ref), s"Reference combination $ref missing under $base (found: ${combos.mkString(", ")})")
-  val others = combos.filterNot(_ == ref)
+  // A "variant" is any folder holding <query>.tsv files:
+  //   <engine>-<format>/iter<N>   saved from the timed runs (04 + Query.scala)
+  //   <engine>-<format>/recapture saved by the optional extra pass (06)
+  //   <engine>-<format>           older layout
+  def tsvDirs(dir: Path, depth: Int): Seq[String] = {
+    val st = fs.listStatus(dir)
+    val here = if (st.exists(f => f.isFile && f.getPath.getName.endsWith(".tsv"))) Seq("") else Seq()
+    val sub = if (depth == 0) Seq() else st.filter(_.isDirectory).toSeq.flatMap { d =>
+      tsvDirs(d.getPath, depth - 1).map(r => if (r.isEmpty) d.getPath.getName else s"${d.getPath.getName}/$r")
+    }
+    here ++ sub
+  }
+  val variants = tsvDirs(base, 2).filter(_.nonEmpty).sorted
+  val ref = Seq("stock-hive/iter1", "stock-hive/recapture", "stock-hive").find(variants.contains)
+    .getOrElse(throw new IllegalStateException(s"No stock-hive results under $base (found: ${variants.mkString(", ")})"))
+  val others = variants.filterNot(_ == ref)
 
   def readResult(combo: String, q: String): Option[Either[String, Seq[Seq[String]]]] = {
     val f = new Path(base, s"$combo/$q.tsv")
@@ -112,7 +127,7 @@ try {
   others.zipWithIndex.foreach { case (c, i) =>
     val st = rows.map(_(i + 1))
     def n(pfx: String) = st.count(_.startsWith(pfx))
-    println(f"[compare] $c%-18s MATCH ${n("MATCH")}%3d (unordered ${st.count(_ == "MATCH(unordered)")})   DIFF ${n("DIFF")}%3d   ERROR ${n("ERROR")}%3d   MISSING ${n("MISSING")}%3d")
+    println(f"[compare] $c%-26s MATCH ${n("MATCH")}%3d (unordered ${st.count(_ == "MATCH(unordered)")})   DIFF ${n("DIFF")}%3d   ERROR ${n("ERROR")}%3d   MISSING ${n("MISSING")}%3d")
   }
   val notMatching = rows.filter(_.tail.exists(s => !s.startsWith("MATCH")))
   if (notMatching.nonEmpty) {
